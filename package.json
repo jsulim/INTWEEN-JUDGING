@@ -1,0 +1,43 @@
+{
+  "name": "intween-judging",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:db": "bash scripts/test-db.sh",
+    "seed": "node scripts/seed.mjs",
+    "postinstall": "node scripts/copy-pdf-worker.mjs"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.2",
+    "next": "14.2.5",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38",
+    "pretendard": "1.3.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "server-only": "^0.0.1",
+    "signature_pad": "^5.1.4",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.6.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.5",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 브랜드 테마 변수 (11장). RGB 채널 값으로 둬 Tailwind 투명도 표기(bg-primary/10)를 지원한다 */
+:root {
+  --primary: 87 140 118;     /* #578C76 헤더, 주요 버튼, 선택 상태 */
+  --primary-fg: 255 255 255;
+  --accent: 53 175 139;      /* #35AF8B 완료·통과, 진행률, 실시간 반영 */
+  --highlight: 241 184 83;   /* #F1B853 마감 임박, 미평가 경고, 1위 */
+  --danger: 200 64 64;
+  --bg: 247 248 247;         /* #F7F8F7 */
+  --fg: 31 42 37;            /* #1F2A25 */
+  --muted: 104 116 110;
+  --line: 224 229 226;
+  --card: 255 255 255;
+}
+
+html { font-size: 15px; }
+body { @apply bg-bg text-fg antialiased; }
+.tabular, input[type='number'] { font-variant-numeric: tabular-nums; }
+
+@media print {
+  body { background: white; }
+}
