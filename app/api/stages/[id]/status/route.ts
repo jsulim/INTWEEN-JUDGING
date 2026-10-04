@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { ApiError, handle, requireApi } from '@/lib/server/auth'
 import { emitEvent } from '@/lib/server/n8n'
 import { STAGE_FLOW, STAGE_STATUS } from '@/lib/format'
-import { profilesByUser, siteUrl } from '@/components/admin/setup/server'
+import { siteUrl } from '@/components/admin/setup/server'
+import { notifyEvaluationStarted } from '@/lib/server/notify'
 import type { Stage, StageStatus } from '@/lib/types'
 
 // PATCH /api/stages/:id/status — 단계 상태 변경 (A-03)
@@ -40,6 +41,8 @@ export const PATCH = handle(async (req: Request, { params }: { params: { id: str
   const patch: Partial<Stage> = { status: target }
   if (target === 'published') patch.published_at = new Date().toISOString()
   if (toIdx < STAGE_FLOW.indexOf('published')) patch.published_at = null
+  // 평가중 이전으로 되돌리면 다시 평가중이 될 때 평가 시작 알림을 다시 보낸다
+  if (toIdx < STAGE_FLOW.indexOf('evaluating')) patch.eval_notified_at = null
 
   const { error } = await supabase.from('stages').update(patch).eq('id', stage.id)
   if (error) throw error
@@ -56,24 +59,8 @@ export const PATCH = handle(async (req: Request, { params }: { params: { id: str
   const site = siteUrl(req)
 
   if (target === 'evaluating' && toIdx > fromIdx) {
-    // 평가 시작: 심사위원별 배정 기업 수·마감일
-    const { data: asg } = await supabase.from('assignments').select('judge_id, conflict').eq('stage_id', stage.id)
-    const counts = new Map<string, number>()
-    for (const a of asg ?? []) if (!a.conflict) counts.set(a.judge_id, (counts.get(a.judge_id) ?? 0) + 1)
-    if (counts.size) {
-      const { data: judges } = await supabase.from('judges').select('id, user_id').in('id', [...counts.keys()])
-      const profs = await profilesByUser(supabase, (judges ?? []).map(j => j.user_id))
-      await Promise.all((judges ?? []).map(j => {
-        const p = profs.get(j.user_id)
-        return emitEvent('evaluation.started', {
-          program, stage: stageInfo,
-          judge: { id: j.id, name: p?.name ?? '', email: p?.email ?? null, phone: p?.phone ?? null },
-          assigned_count: counts.get(j.id) ?? 0,
-          eval_end: stage.eval_end,
-          url: `${site}/j/s/${stage.id}`,
-        })
-      }))
-    }
+    // 평가 시작: 심사위원별 배정 기업 수·마감일 (5분 tick 과 중복 발송되지 않도록 DB 에서 선점)
+    await notifyEvaluationStarted(stage.id, site)
   }
 
   if (target === 'published') {

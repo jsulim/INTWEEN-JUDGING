@@ -39,11 +39,14 @@ export default async function ConsentPage() {
     const list = templates.filter(t => t.program_id === j.program_id)
     const signed = new Map(consents.filter(c => c.judge_id === j.id).map(c => [c.template_id, c]))
     const pendingRequired = list.filter(t => t.required && !signed.has(t.id)).length
+    // 필수 양식이 아직 없으면 서명 완료로 보지 않는다 (DB has_signed_all 과 동일 기준)
+    const notReady = !list.some(t => t.required)
     // 비활성(이전 버전) 양식에 대한 서명이 있으면 개정으로 인한 재서명
     const revised = consents.some(c => c.judge_id === j.id && !activeIds.has(c.template_id)) && list.some(t => !signed.has(t.id))
-    return { judge: j, list, signed, pendingRequired, revised }
+    return { judge: j, list, signed, pendingRequired, notReady, revised }
   })
-  const allDone = groups.every(g => g.pendingRequired === 0)
+  const allDone = groups.every(g => g.pendingRequired === 0 && !g.notReady)
+  const anyNotReady = groups.some(g => g.notReady)
 
   return (
     <>
@@ -55,21 +58,26 @@ export default async function ConsentPage() {
         </div>
       ) : (
         <div className="mb-6">
-          <Alert tone="highlight">필수 동의서를 모두 서명해야 배정 기업 자료를 열람하고 평가할 수 있습니다.</Alert>
+          <Alert tone="highlight">
+            필수 동의서를 모두 서명해야 배정 기업 자료를 열람하고 평가할 수 있습니다.
+            {anyNotReady && ' 동의서가 아직 준비되지 않은 프로그램이 있습니다. 관리자가 등록하면 서명할 수 있습니다.'}
+          </Alert>
         </div>
       )}
 
       <div className="grid gap-8">
-        {groups.map(({ judge, list, signed, pendingRequired, revised }) => (
+        {groups.map(({ judge, list, signed, pendingRequired, notReady, revised }) => (
           <section key={judge.id}>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-bold">{judge.programs?.title}</h2>
-              {pendingRequired > 0
-                ? <Badge tone="highlight">미서명 {pendingRequired}건</Badge>
-                : <Badge tone="accent">서명 완료</Badge>}
+              {notReady
+                ? <Badge tone="highlight">동의서 준비 중</Badge>
+                : pendingRequired > 0
+                  ? <Badge tone="highlight">미서명 {pendingRequired}건</Badge>
+                  : <Badge tone="accent">서명 완료</Badge>}
             </div>
             {revised && <div className="mb-3"><Alert tone="highlight">동의서 양식이 개정되었습니다. 새 버전에 다시 서명하세요.</Alert></div>}
-            {list.length === 0 && <Empty>등록된 동의서가 없습니다.</Empty>}
+            {notReady && <Empty>관리자가 아직 필수 동의서를 등록하지 않았습니다. 등록되면 여기서 서명한 뒤 평가할 수 있습니다.</Empty>}
             <div className="grid gap-4">
               {list.map(t => {
                 const c = signed.get(t.id)

@@ -32,12 +32,13 @@ function isEmpty(field: ApplicationField, v: Value) {
   return v == null || String(v).trim() === ''
 }
 
-export default function ApplicationForm({ companyId, fields, initial, canEdit, submittedAt }: {
+export default function ApplicationForm({ companyId, fields, initial, canEdit, submittedAt, needsResubmit }: {
   companyId: string
   fields: ApplicationField[]
   initial: Record<string, unknown>
   canEdit: boolean
   submittedAt: string | null
+  needsResubmit: boolean
 }) {
   const router = useRouter()
   const [values, setValues] = useState<Record<string, Value>>(() =>
@@ -102,10 +103,15 @@ export default function ApplicationForm({ companyId, fields, initial, canEdit, s
       setBusy(null)
       return setMsg({ tone: 'danger', text: err })
     }
-    const { error } = await supabaseBrowser().from('companies')
-      .update({ application_submitted_at: new Date().toISOString() }).eq('id', companyId)
+    // 제출 시각은 서버가 기록 (수정 기간·필수 항목도 DB 에서 다시 확인)
+    const { error } = await supabaseBrowser().rpc('submit_application', { p_company_id: companyId })
     setBusy(null)
-    if (error) return setMsg({ tone: 'danger', text: '신청서를 제출하지 못했습니다. 잠시 후 다시 시도해 주세요.' })
+    if (error) {
+      const m = error.message ?? ''
+      if (m.startsWith('missing_required')) return setMsg({ tone: 'danger', text: `필수 항목을 입력해 주세요: ${m.replace(/^missing_required:\s*/, '')}` })
+      if (error.code === '42501') return setMsg({ tone: 'danger', text: '신청서 제출 기간이 아닙니다.' })
+      return setMsg({ tone: 'danger', text: '신청서를 제출하지 못했습니다. 잠시 후 다시 시도해 주세요.' })
+    }
     setDirty(false)
     setMsg({ tone: 'accent', text: '신청서 제출 완료' })
     router.refresh()
@@ -153,7 +159,9 @@ export default function ApplicationForm({ companyId, fields, initial, canEdit, s
             {busy === 'submit' ? '제출 중…' : submittedAt ? '다시 제출' : '신청서 제출'}
           </Button>
           {dirty && <span className="text-xs text-muted">저장되지 않은 변경 사항이 있습니다.</span>}
-          {!dirty && submittedAt && <span className="tabular text-xs text-muted">제출 {fmtDate(submittedAt)}</span>}
+          {!dirty && submittedAt && (needsResubmit
+            ? <span className="text-xs font-semibold text-[#8a5a00]">제출 후 수정한 내용이 있습니다. &lsquo;다시 제출&rsquo;을 눌러야 반영됩니다.</span>
+            : <span className="tabular text-xs text-muted">제출 {fmtDate(submittedAt)}</span>)}
         </div>
       )}
     </div>

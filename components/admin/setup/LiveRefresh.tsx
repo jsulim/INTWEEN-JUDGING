@@ -7,13 +7,12 @@ import { fmtDate } from '@/lib/format'
 
 /**
  * A-01 실시간 반영 (8-2, Q5): scores·assignments 변경 구독 → 500ms 디바운스 router.refresh()
- * 새 편차 경고가 나타나면 /api/stages/:id/deviation-check 로 n8n 알림 요청
+ * 편차 경고가 있으면 /api/stages/:id/deviation-check 로 즉시 확인 요청 (중복 발송은 서버가 막는다)
  */
 export default function LiveRefresh({ stageId, alertIds, renderedAt }: { stageId: string; alertIds: string[]; renderedAt: string }) {
   const router = useRouter()
   const [connected, setConnected] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
-  const known = useRef<Set<string> | null>(null)
 
   useEffect(() => {
     const sb = supabaseBrowser()
@@ -32,16 +31,11 @@ export default function LiveRefresh({ stageId, alertIds, renderedAt }: { stageId
     }
   }, [stageId, router])
 
-  // 편차 경고: 첫 렌더 기준선 이후 새로 생긴 기업만 알림
+  // 편차 경고: 경고 기업 구성이 바뀔 때만 요청. 이미 알린 기업은 서버(deviation_alerts)가 걸러 낸다
+  const alertKey = [...alertIds].sort().join(',')
   useEffect(() => {
-    if (known.current === null) {
-      known.current = new Set(alertIds)
-      return
-    }
-    const fresh = alertIds.filter(id => !known.current!.has(id))
-    alertIds.forEach(id => known.current!.add(id))
-    if (fresh.length) api(`/api/stages/${stageId}/deviation-check`, { body: { company_ids: fresh } }).catch(() => {})
-  }, [alertIds, stageId])
+    if (alertKey) api(`/api/stages/${stageId}/deviation-check`, { body: {} }).catch(() => {})
+  }, [alertKey, stageId])
 
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted">

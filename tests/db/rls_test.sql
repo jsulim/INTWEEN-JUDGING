@@ -189,3 +189,74 @@ update stages set status = 'ready', submit_start = now() - interval '1 hour', su
   eval_start = null where id = '20000000-0000-0000-0000-000000000001';
 select auto_advance_stages();
 select pg_temp.expect((select status from stages where id = '20000000-0000-0000-0000-000000000001') = 'submitting', 'Cron 자동 전환 준비→접수중');
+
+-- ── 동의서 양식이 없으면 서명 완료로 보지 않음 (20261004000060) ──────────
+insert into programs (id, title) values ('10000000-0000-0000-0000-000000000002', '양식 없는 프로그램');
+insert into judges (id, program_id, user_id) values
+  ('60000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000f1');
+select pg_temp.expect(has_signed_all('60000000-0000-0000-0000-000000000003') = false, '필수 동의서 양식 0개면 미서명 처리');
+select pg_temp.expect(has_signed_all('60000000-0000-0000-0000-000000000001') = true, '양식 서명 완료 심사위원은 통과');
+
+-- ── 신청서 제출은 submit_application 경유만 (20261004000070) ──────────
+update programs set application_open = true, application_due = now() + interval '1 day'
+where id = '10000000-0000-0000-0000-000000000001';
+insert into application_fields (id, program_id, label, required, order_no) values
+  ('a0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '매출액', true, 1);
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1"}', false);
+set role authenticated;
+do $$ begin
+  begin
+    update companies set application_submitted_at = now() where id = '40000000-0000-0000-0000-000000000001';
+    raise exception 'FAIL: 제출 시각 직접 변경 허용';
+  exception when insufficient_privilege then raise notice 'ok - 기업의 제출 시각 직접 변경 차단';
+  end;
+  begin
+    perform submit_application('40000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: 필수 항목 누락 제출 허용';
+  exception when raise_exception then
+    if sqlerrm not like 'missing_required%' then raise; end if;
+    raise notice 'ok - 필수 항목 누락 시 제출 거부';
+  end;
+  begin
+    perform submit_application('40000000-0000-0000-0000-000000000002');
+    raise exception 'FAIL: 타 기업 신청서 제출 허용';
+  exception when insufficient_privilege then raise notice 'ok - 타 기업 신청서 제출 차단';
+  end;
+end $$;
+insert into application_answers (company_id, field_id, value) values
+  ('40000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '"10억"');
+select submit_application('40000000-0000-0000-0000-000000000001');
+select pg_temp.expect((select application_submitted_at is not null from companies where id = '40000000-0000-0000-0000-000000000001'), '기간 내 신청서 제출');
+reset role;
+update programs set application_due = now() - interval '1 minute' where id = '10000000-0000-0000-0000-000000000001';
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1"}', false);
+set role authenticated;
+do $$ begin
+  begin
+    perform submit_application('40000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: 마감 후 제출 허용';
+  exception when insufficient_privilege then raise notice 'ok - 마감 후 신청서 제출 거부';
+  end;
+end $$;
+reset role;
+
+-- 값이 그대로인 저장은 updated_at 을 올리지 않음 (제출 후 '수정됨' 판정)
+set session_replication_role = replica; -- 준비용: 트리거 없이 수정 시각만 과거로
+update application_answers set updated_at = '2000-01-01' where field_id = 'a0000000-0000-0000-0000-000000000001';
+set session_replication_role = origin;
+update application_answers set value = '"10억"' where field_id = 'a0000000-0000-0000-0000-000000000001';
+select pg_temp.expect((select updated_at = '2000-01-01' from application_answers where field_id = 'a0000000-0000-0000-0000-000000000001'), '같은 값 저장은 수정으로 보지 않음');
+update application_answers set value = '"12억"' where field_id = 'a0000000-0000-0000-0000-000000000001';
+select pg_temp.expect((select updated_at > '2000-01-01' from application_answers where field_id = 'a0000000-0000-0000-0000-000000000001'), '값 변경은 수정 시각 갱신');
+
+-- ── 알림 발송 기록 (20261004000080) ──────────────────────────────
+select pg_temp.expect((select count(*) from information_schema.columns where table_name = 'stages' and column_name = 'eval_notified_at') = 1, '평가 시작 알림 기록 컬럼');
+insert into deviation_alerts (stage_id, company_id) values ('20000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001')
+  on conflict do nothing;
+insert into deviation_alerts (stage_id, company_id) values ('20000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001')
+  on conflict do nothing;
+select pg_temp.expect((select count(*) from deviation_alerts) = 1, '편차 경고는 단계·기업별 1회만 기록');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1"}', false);
+set role authenticated;
+select pg_temp.expect((select count(*) from deviation_alerts) = 0, '심사위원은 편차 경고 기록 조회 불가');
+reset role;

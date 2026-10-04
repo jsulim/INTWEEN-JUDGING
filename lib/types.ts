@@ -61,6 +61,7 @@ export interface Stage {
   deviation_alert: number
   is_presentation: boolean
   published_at: string | null
+  eval_notified_at: string | null
 }
 
 export interface RubricBand {

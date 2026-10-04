@@ -9,7 +9,7 @@ import { Check, Feedback, must, num, useRun } from '@/components/admin/setup/cli
 import { STAGE_FLOW, STAGE_STATUS, fmtDate, fromLocalInput, toLocalInput } from '@/lib/format'
 import type { RequiredFile, Stage, StageStatus } from '@/lib/types'
 
-export type StageStats = { entries: number; assignments: number; criteria: number; maxTotal: number }
+export type StageStats = { entries: number; assignments: number; criteria: number; maxTotal: number; requiredConsents: number }
 
 type Draft = {
   name: string; order_no: string
@@ -181,6 +181,7 @@ function StatusControl({ stage, stats }: { stage: Stage; stats: StageStats }) {
       if (target === 'submitting' && stage.required_files.length === 0) warn.push('제출 파일 슬롯이 없습니다.')
       if (target === 'evaluating' && stats.criteria === 0) warn.push('평가항목이 없습니다.')
       if (target === 'evaluating' && stats.assignments === 0) warn.push('배정된 심사위원이 없습니다.')
+      if (target === 'evaluating' && stats.requiredConsents === 0) warn.push('필수 동의서 양식이 없습니다. 심사위원이 서명할 수 없어 평가를 시작하지 못합니다. (동의서 양식 메뉴에서 등록)')
       if (target === 'evaluating' && !back) warn.push('심사위원에게 평가 시작 알림이 발송됩니다.')
       if (target === 'published') warn.push('참가 기업에 통과/탈락 결과가 공개되고 알림이 발송됩니다.')
       if (back) warn.push('이전 상태로 되돌립니다.')

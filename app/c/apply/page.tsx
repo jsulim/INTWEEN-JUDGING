@@ -31,7 +31,7 @@ export default async function ApplyPage() {
   const [{ data: fieldRows }, { data: answerRows }, { data: checkRows }, { data: ruleRows }, { data: bonusRows }, { data: stageRows }, canEditList] =
     await Promise.all([
       supabase.from('application_fields').select('*').in('program_id', programIds).order('order_no'),
-      supabase.from('application_answers').select('company_id, field_id, value').in('company_id', companyIds),
+      supabase.from('application_answers').select('company_id, field_id, value, updated_at').in('company_id', companyIds),
       entryIds.length ? supabase.from('eligibility_checks').select('*').in('entry_id', entryIds).eq('result', 'supplement').order('created_at') : none,
       stageIds.length ? supabase.from('bonus_rules').select('*').in('stage_id', stageIds).order('created_at') : none,
       entryIds.length ? supabase.from('entry_bonuses').select('*').in('entry_id', entryIds) : none,
@@ -40,7 +40,7 @@ export default async function ApplyPage() {
     ])
 
   const fields = ((fieldRows ?? []) as ApplicationField[]).map(f => ({ ...f, options: Array.isArray(f.options) ? f.options.map(String) : [] }))
-  const answers = (answerRows ?? []) as { company_id: string; field_id: string; value: unknown }[]
+  const answers = (answerRows ?? []) as { company_id: string; field_id: string; value: unknown; updated_at: string }[]
   const checks = (checkRows ?? []) as EligibilityCheck[]
   const rules = (ruleRows ?? []) as BonusRule[]
   const bonuses = (bonusRows ?? []) as EntryBonus[]
@@ -55,7 +55,11 @@ export default async function ApplyPage() {
           const myEntries = entries.filter(e => e.company_id === company.id)
           const myChecks = checks.filter(c => myEntries.some(e => e.entry_id === c.entry_id))
           const myFields = fields.filter(f => f.program_id === company.program_id)
-          const initial = Object.fromEntries(answers.filter(a => a.company_id === company.id).map(a => [a.field_id, a.value]))
+          const myAnswers = answers.filter(a => a.company_id === company.id)
+          const initial = Object.fromEntries(myAnswers.map(a => [a.field_id, a.value]))
+          // 제출 이후에 값이 바뀐 답변이 있으면 다시 제출해야 반영된다
+          const submittedAt = company.application_submitted_at
+          const needsResubmit = !!submittedAt && myAnswers.some(a => new Date(a.updated_at) > new Date(submittedAt))
           const groups: BonusGroup[] = myEntries
             .map(e => ({
               entry_id: e.entry_id,
@@ -69,14 +73,15 @@ export default async function ApplyPage() {
           return (
             <section key={company.id} className="grid gap-5">
               {companies.length > 1 && <h2 className="text-lg font-bold">{company.programs?.title}</h2>}
-              <StatusBar company={company} canEdit={canEdit} hasOpenSupplement={myChecks.some(c => !c.resolved_at)} />
+              <StatusBar company={company} canEdit={canEdit} needsResubmit={needsResubmit} hasOpenSupplement={myChecks.some(c => !c.resolved_at)} />
               {myChecks.length > 0 && <SupplementList checks={myChecks} />}
               <ApplicationForm
                 companyId={company.id}
                 fields={myFields}
                 initial={initial}
                 canEdit={canEdit}
-                submittedAt={company.application_submitted_at}
+                submittedAt={submittedAt}
+                needsResubmit={needsResubmit}
               />
               {groups.length > 0 && <BonusClaims groups={groups} />}
             </section>
@@ -87,7 +92,7 @@ export default async function ApplyPage() {
   )
 }
 
-function StatusBar({ company, canEdit, hasOpenSupplement }: { company: CompanyWithProgram; canEdit: boolean; hasOpenSupplement: boolean }) {
+function StatusBar({ company, canEdit, needsResubmit, hasOpenSupplement }: { company: CompanyWithProgram; canEdit: boolean; needsResubmit: boolean; hasOpenSupplement: boolean }) {
   const p = company.programs
   const due = p?.application_due ?? null
   const closedByDue = !!due && new Date(due) < new Date()
@@ -101,7 +106,9 @@ function StatusBar({ company, canEdit, hasOpenSupplement }: { company: CompanyWi
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-card px-4 py-3 text-sm">
         <span className="font-semibold">상태</span>
-        {company.application_submitted_at ? <Badge tone="accent">제출 완료</Badge> : <Badge tone="highlight">미제출</Badge>}
+        {!company.application_submitted_at ? <Badge tone="highlight">미제출</Badge>
+          : needsResubmit ? <Badge tone="highlight">수정됨 · 다시 제출 필요</Badge>
+          : <Badge tone="accent">제출 완료</Badge>}
         {company.application_submitted_at && <span className="tabular text-muted">{fmtDate(company.application_submitted_at)}</span>}
         <span className="ml-auto flex items-center gap-2">
           {due && <span className="tabular text-muted">마감 {fmtDate(due)}</span>}

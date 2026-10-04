@@ -21,7 +21,7 @@ function JudgeRow({ j, programId, templates }: { j: JudgeView; programId: string
   const [edit, setEdit] = useState(false)
   const [d, setD] = useState({ affiliation: j.affiliation ?? '', expertise: j.expertise ?? '' })
   const required = templates.filter(t => t.required)
-  const signedAll = required.every(t => j.consents.some(c => c.template_id === t.id))
+  const signedAll = required.length > 0 && required.every(t => j.consents.some(c => c.template_id === t.id))
   const declared = j.consents.filter(c => c.conflict_declared)
 
   async function toggleChair() {
@@ -141,7 +141,8 @@ export default function JudgesManager({ programId, judges, templates, pool }:
     if (ok) setF(EMPTY)
   }
 
-  const signedCount = judges.filter(j => templates.filter(t => t.required).every(t => j.consents.some(c => c.template_id === t.id))).length
+  const requiredTpls = templates.filter(t => t.required)
+  const signedCount = requiredTpls.length === 0 ? 0 : judges.filter(j => requiredTpls.every(t => j.consents.some(c => c.template_id === t.id))).length
 
   return (
     <div className="grid gap-5">
@@ -172,7 +173,7 @@ export default function JudgesManager({ programId, judges, templates, pool }:
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
         <span>전체 <b className="tabular text-fg">{judges.length}</b>명</span>
         <span>필수 동의서 서명 완료 <b className="tabular text-accent">{signedCount}</b>명</span>
-        {templates.length === 0 && <Badge tone="highlight">활성 동의서 양식 없음</Badge>}
+        {requiredTpls.length === 0 && <Badge tone="highlight">필수 동의서 양식 없음 · 심사위원이 평가를 시작할 수 없습니다</Badge>}
       </div>
 
       {judges.length === 0 ? <Empty>등록된 심사위원이 없습니다.</Empty> : (

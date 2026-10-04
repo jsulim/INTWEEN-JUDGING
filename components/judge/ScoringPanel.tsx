@@ -46,6 +46,8 @@ function errorText(e: unknown): string {
 }
 
 const toNum = (s: string) => (s.trim() === '' || s.trim() === '.' ? null : Number(s))
+// 배점 초과 값은 화면에만 남기고 점수로는 취급하지 않는다 (저장·합계·완료 판정에서 미입력)
+const validNum = (s: string, max: number) => { const n = toNum(s); return n != null && n >= 0 && n <= max ? n : null }
 const clock = (d: Date) => d.toLocaleTimeString('ko-KR', { hour12: false, timeZone: 'Asia/Seoul' })
 
 export interface ScoringPanelProps {
@@ -220,7 +222,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
     const nextV = { ...cur, ...patch }
     valsRef.current = { ...valsRef.current, [c.id]: nextV }
     setVals(valsRef.current)
-    pendingRef.current.scores[c.id] = { score: toNum(nextV.score), comment: nextV.comment.trim() ? nextV.comment : null }
+    pendingRef.current.scores[c.id] = { score: validNum(nextV.score, c.max_score), comment: nextV.comment.trim() ? nextV.comment : null }
     queue()
   }
 
@@ -229,9 +231,10 @@ export default function ScoringPanel(props: ScoringPanelProps) {
     const block = (msg: string) => setWarn(w => ({ ...w, [c.id]: msg }))
     if (v !== '' && !SCORE_RE.test(v)) return block(v.startsWith('-') ? '0점 이상만 입력할 수 있습니다.' : '숫자만 입력할 수 있습니다 (소수 둘째 자리까지).')
     const n = toNum(v)
-    if (n != null && n > c.max_score) return block(`배점(${fmtScore(c.max_score)}점)을 넘을 수 없습니다.`)
-    if (n != null && n < 0) return block('0점 이상만 입력할 수 있습니다.')
-    setWarn(w => { const { [c.id]: _x, ...rest } = w; return rest })
+    // 초과 값도 입력란에는 그대로 보여 주고, 저장된 점수는 비워 미입력으로 되돌린다
+    // (타이핑 중간값 '3' 이 '35' 대신 조용히 남는 것을 막는다)
+    if (n != null && n > c.max_score) block(`배점(${fmtScore(c.max_score)}점)을 넘었습니다. 고칠 때까지 이 항목은 저장되지 않습니다.`)
+    else setWarn(w => { const { [c.id]: _x, ...rest } = w; return rest })
     setCriterion(c, { score: v })
   }
 
@@ -243,7 +246,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
   }
 
   const current = useMemo(() => criteria.map(c => ({
-    criterion_id: c.id, score: toNum(vals[c.id]?.score ?? ''), comment: vals[c.id]?.comment ?? null,
+    criterion_id: c.id, score: validNum(vals[c.id]?.score ?? '', c.max_score), comment: vals[c.id]?.comment ?? null,
   })), [criteria, vals])
   const missing = missingItems(criteria, current)
   const total = current.reduce((a, s) => a + (s.score ?? 0), 0)
@@ -316,7 +319,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
                     <input id={`score-${assignmentId}-${c.id}`} value={v.score} disabled={readOnly}
                       inputMode="decimal" autoComplete="off" placeholder="-"
                       onChange={e => onScore(c, e.target.value)}
-                      onBlur={() => setWarn(w => { const { [c.id]: _x, ...rest } = w; return rest })}
+                      onBlur={() => { if (n == null || n <= c.max_score) setWarn(w => { const { [c.id]: _x, ...rest } = w; return rest }) }}
                       aria-invalid={!!warn[c.id]}
                       className={cn('tabular w-full rounded-md border bg-card px-3 text-right font-bold outline-none focus:ring-2 disabled:bg-bg disabled:text-fg/70',
                         inputH, warn[c.id] ? 'border-danger focus:ring-danger/20' : 'border-line focus:border-primary focus:ring-primary/20')} />

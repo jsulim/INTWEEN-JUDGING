@@ -9,14 +9,15 @@ export default async function StagesPage({ params }: { params: { id: string } })
   const { supabase } = await requireRole('admin')
   const stages = await programStages(supabase, params.id)
   const ids = stages.map(s => s.id)
-  const [{ data: entries }, { data: asg }, { data: crit }, { count: companyCount }] = await Promise.all([
+  const [{ data: entries }, { data: asg }, { data: crit }, { count: companyCount }, { count: consentCount }] = await Promise.all([
     ids.length ? supabase.from('stage_entries').select('stage_id').in('stage_id', ids) : Promise.resolve({ data: [] as { stage_id: string }[] }),
     ids.length ? supabase.from('assignments').select('stage_id').in('stage_id', ids).eq('conflict', false) : Promise.resolve({ data: [] as { stage_id: string }[] }),
     ids.length ? supabase.from('criteria').select('stage_id, max_score').in('stage_id', ids) : Promise.resolve({ data: [] as { stage_id: string; max_score: number }[] }),
     supabase.from('companies').select('id', { count: 'exact', head: true }).eq('program_id', params.id),
+    supabase.from('consent_templates').select('id', { count: 'exact', head: true }).eq('program_id', params.id).eq('is_active', true).eq('required', true),
   ])
   const stats: Record<string, StageStats> = {}
-  for (const s of stages) stats[s.id] = { entries: 0, assignments: 0, criteria: 0, maxTotal: 0 }
+  for (const s of stages) stats[s.id] = { entries: 0, assignments: 0, criteria: 0, maxTotal: 0, requiredConsents: consentCount ?? 0 }
   for (const e of entries ?? []) stats[e.stage_id].entries++
   for (const a of asg ?? []) stats[a.stage_id].assignments++
   for (const c of crit ?? []) { stats[c.stage_id].criteria++; stats[c.stage_id].maxTotal += Number(c.max_score) }
