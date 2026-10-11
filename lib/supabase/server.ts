@@ -3,10 +3,15 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
+// Next.js 14 는 서버의 fetch 응답을 데이터 캐시에 저장할 수 있다. DB 조회가 예전 값을 돌려주지 않도록
+// 서버에서 만드는 Supabase 클라이언트는 모두 캐시 없이 요청한다.
+const noStoreFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: 'no-store' })
+
 /** 서버 컴포넌트·Route Handler용 클라이언트 — 로그인 사용자 권한(RLS) 그대로 */
 export function supabaseServer() {
   const cookieStore = cookies()
   return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    global: { fetch: noStoreFetch },
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: list => {
@@ -29,5 +34,6 @@ export function supabaseAdmin() {
   if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY 가 설정되지 않았습니다.')
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: noStoreFetch },
   })
 }
