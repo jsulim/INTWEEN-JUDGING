@@ -16,7 +16,7 @@ export default async function JoinPage({ params }: { params: { programId: string
     console.error('[join] program lookup', params.programId, error?.message ?? 'no row')
     return (
       <AuthFrame title="심사위원 신청">
-        <Alert tone="danger">신청 링크를 확인할 수 없습니다. 링크가 정확한지 운영사무국에 문의해 주세요. (코드: {error ? 'DB' : 'NOT_FOUND'})</Alert>
+        <Alert tone="danger">신청 링크를 확인할 수 없습니다. 링크가 정확한지 운영사무국에 문의해 주세요. (코드: {error ? `DB · ${error.message}` : 'NOT_FOUND'})</Alert>
       </AuthFrame>
     )
   }
