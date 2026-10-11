@@ -4,6 +4,7 @@ import type { EventConfig } from './types'
 // 참가팀 목록에는 개인 이름을 넣지 않는다 (외부 비공개 페이지이지만 저장소가 공개 상태).
 export const uljin: EventConfig = {
   slug: 'uljin',
+  host: 'uljin-ideathon.sasurae.kr',
   title: '2026 울진군 창업아이디어톤',
   year: '2026',
   region: '울진군',

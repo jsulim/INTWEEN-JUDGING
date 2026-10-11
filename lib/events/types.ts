@@ -10,6 +10,7 @@ export type EventTheme = {
 
 export type EventConfig = {
   slug: string
+  host?: string             // 전용 하위 도메인 (Cloudflare CNAME + Vercel Domains 에 등록)
   title: string             // 브라우저 탭 제목
   year: string
   region: string            // 히어로 첫 줄
