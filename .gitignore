@@ -8,3 +8,10 @@ next-env.d.ts
 public/pdf.worker.min.mjs
 supabase/.temp/
 supabase/.branches/
+
+# 사업별 원본 자료 (개인정보 포함 가능, 저장소 공개 상태이므로 커밋 금지)
+/*.hwpx
+/*.hwp
+/*.pdf
+/*.xlsx
+/KakaoTalk_*
