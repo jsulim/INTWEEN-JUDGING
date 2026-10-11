@@ -5,22 +5,15 @@ import { EVENT_HOSTS } from '@/lib/events/hosts'
 const PROTECTED = ['/c', '/j', '/a', '/me', '/invite', '/mfa', '/home']
 
 // 대회 전용 하위 도메인(예: uljin-ideathon.sasurae.kr)
-//  · /            → 해당 대회 소개 페이지(/<slug>)를 보여준다
-//  · 로그인·심사 등 나머지 화면 → 플랫폼 본체 주소(NEXT_PUBLIC_SITE_URL)로 보낸다 (로그인은 본체 한 곳에서만)
+//  · /  → 해당 대회 소개 페이지(/<slug>)
+//  · 그 밖의 경로(로그인·심사·관리자) → 같은 주소에서 플랫폼을 그대로 쓴다 (심사위원이 대회 주소 하나만 기억하면 되도록)
 function eventHost(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0] ?? ''
   const slug = EVENT_HOSTS[host]
-  if (!slug) return null
+  if (!slug || request.nextUrl.pathname !== '/') return null
   const url = request.nextUrl.clone()
-  const path = url.pathname
-  if (path === '/') {
-    url.pathname = `/${slug}`
-    return NextResponse.rewrite(url)
-  }
-  if (path === `/${slug}` || path.startsWith(`/events/${slug}/`)) return NextResponse.next()
-  const app = process.env.NEXT_PUBLIC_SITE_URL
-  if (app && new URL(app).host !== host) return NextResponse.redirect(new URL(path + url.search, app))
-  return null
+  url.pathname = `/${slug}`
+  return NextResponse.rewrite(url)
 }
 
 export async function middleware(request: NextRequest) {
