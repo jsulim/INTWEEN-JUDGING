@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn } from '@/components/ui'
+import { useBrand } from '@/components/Brand'
 
 export interface NavItem { href: string; label: string; exact?: boolean }
 
@@ -47,6 +48,8 @@ export default function AppShell({ area, nav, userName, children, wide }:
   { area: string; nav: NavItem[]; userName: string; children: ReactNode; wide?: boolean }) {
   const pathname = usePathname()
   const logout = useLogout()
+  const brand = useBrand()
+  const custom = brand.name !== 'INTWEEN'
   const [open, setOpen] = useState(false)
   const active = (n: NavItem) => (n.exact ? pathname === n.href : pathname === n.href || pathname.startsWith(n.href + '/'))
   return (
@@ -55,8 +58,8 @@ export default function AppShell({ area, nav, userName, children, wide }:
       <header className="sticky top-0 z-30 bg-primary text-primary-fg print:hidden">
         <div className={cn('mx-auto flex h-14 items-center gap-4 px-4', wide ? 'max-w-[1600px]' : 'max-w-7xl')}>
           <Link href="/home" className="flex shrink-0 items-center gap-2">
-            <span className="text-lg font-black tracking-tight">INTWEEN</span>
-            <span className="hidden text-sm text-white/70 sm:inline">심사 관리 · {area}</span>
+            <span className={cn('font-black tracking-tight', custom ? 'max-w-[55vw] truncate text-base' : 'text-lg')}>{brand.name}</span>
+            <span className="hidden text-sm text-white/70 sm:inline">{custom ? area : `심사 관리 · ${area}`}</span>
           </Link>
           <nav className="hidden flex-1 gap-1 overflow-x-auto md:flex">
             {nav.map(n => (
