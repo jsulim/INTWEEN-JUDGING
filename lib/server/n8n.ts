@@ -16,6 +16,8 @@ export type N8nEvent =
   | 'presentation.scheduled' // 발표 순서 확정
   | 'presentation.upcoming' // 발표 10분 전
   | 'appeal.received'
+  | 'judge.requested' // 심사위원 가입 신청 → 관리자 승인 요청
+  | 'judge.approved' // 가입 승인 → 심사위원 안내
   | 'retention.upcoming' // 파기 예정 D-30
 
 export async function emitEvent(event: N8nEvent, payload: Record<string, unknown>) {

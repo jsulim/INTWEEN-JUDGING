@@ -1,18 +1,21 @@
 import { requireRole } from '@/lib/server/auth'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { profilesByUser } from '@/components/admin/setup/server'
-import type { Consent, ConsentTemplate, Judge, JudgePoolEntry } from '@/lib/types'
+import type { Consent, ConsentTemplate, Judge, JudgePoolEntry, JudgeRequest } from '@/lib/types'
 import JudgesManager, { type JudgeView } from './JudgesManager'
+import JudgeRequests from './JudgeRequests'
 
 export const dynamic = 'force-dynamic'
 
 // A-06 심사위원 관리: 등록·초대, 서명 현황, 서명본 PDF, 이해충돌 신고
 export default async function JudgesPage({ params }: { params: { id: string } }) {
   const { supabase } = await requireRole('admin')
-  const [{ data: judgeRows }, { data: templates }, { data: pool }] = await Promise.all([
+  const [{ data: judgeRows }, { data: templates }, { data: pool }, { data: program }, { data: requests }] = await Promise.all([
     supabase.from('judges').select('*').eq('program_id', params.id).order('created_at'),
     supabase.from('consent_templates').select('*').eq('program_id', params.id).eq('is_active', true).order('kind'),
     supabase.from('judge_pool').select('*').order('name'),
+    supabase.from('programs').select('judge_signup_open').eq('id', params.id).maybeSingle(),
+    supabase.from('judge_requests').select('*').eq('program_id', params.id).order('created_at', { ascending: false }),
   ])
   const judges = (judgeRows ?? []) as Judge[]
   const judgeIds = judges.map(j => j.id)
@@ -55,6 +58,9 @@ export default async function JudgesPage({ params }: { params: { id: string } })
     <>
       <h1 className="mb-1 text-2xl font-bold">심사위원 관리</h1>
       <p className="mb-6 text-muted">심사위원은 활성 동의서(필수)를 모두 서명해야 자료 열람·평가가 가능합니다. 양식 버전이 바뀌면 재서명이 필요합니다.</p>
+      <div className="mb-5">
+        <JudgeRequests programId={params.id} open={!!program?.judge_signup_open} requests={(requests ?? []) as JudgeRequest[]} />
+      </div>
       <JudgesManager programId={params.id} judges={rows} templates={(templates ?? []) as ConsentTemplate[]} pool={(pool ?? []) as JudgePoolEntry[]} />
     </>
   )

@@ -32,6 +32,24 @@ export interface Program {
   closed_at: string | null
   payment_per_session: number
   payments_enabled: boolean // 심사위원 수당 정산 사용 (끄면 정산 메뉴 숨김)
+  judge_signup_open: boolean // 심사위원 가입 신청 링크 접수 중
+  created_at: string
+}
+
+export type JudgeRequestStatus = 'pending' | 'approved' | 'rejected'
+
+/** 심사위원 자가 가입 신청 (관리자 승인 시 profiles·judges 생성) */
+export interface JudgeRequest {
+  id: string
+  program_id: string
+  user_id: string
+  email: string | null
+  name: string
+  phone: string | null
+  org: string | null
+  expertise: string | null
+  status: JudgeRequestStatus
+  decided_at: string | null
   created_at: string
 }
 

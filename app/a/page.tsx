@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Badge, Card, Empty, LinkButton, PageHeader, Progress, Stat } from '@/components/ui'
+import { Alert, Badge, Card, Empty, LinkButton, PageHeader, Progress, Stat } from '@/components/ui'
 import { StageStatusBadge, DDayBadge } from '@/components/StatusBadges'
 import { requireRole } from '@/lib/server/auth'
 import { fmtDate } from '@/lib/format'
@@ -25,6 +25,12 @@ export default async function AdminHome() {
     return { program: p, stage, ov }
   }))
 
+  // 심사위원 가입 승인 대기 (프로그램별)
+  const { data: reqs } = await supabase.from('judge_requests').select('program_id').eq('status', 'pending')
+  const pendingBy = new Map<string, number>()
+  for (const r of reqs ?? []) pendingBy.set(r.program_id, (pendingBy.get(r.program_id) ?? 0) + 1)
+  const titleOf = new Map(list.map(p => [p.id, p.title]))
+
   const totalAlerts = overviews.reduce((a, o) => a + (o.ov?.alerts.length ?? 0), 0)
   const evaluating = active.flatMap(p => p.stages).filter(s => s.status === 'evaluating').length
   const submitting = active.flatMap(p => p.stages).filter(s => s.status === 'submitting').length
@@ -33,6 +39,17 @@ export default async function AdminHome() {
     <>
       <PageHeader title="통합 대시보드" description="운영 중인 프로그램의 현재 단계와 진행 현황"
         actions={<LinkButton href="/a/programs" variant="outline">프로그램 관리</LinkButton>} />
+
+      {pendingBy.size > 0 && (
+        <div className="mb-4 grid gap-2">
+          {[...pendingBy].map(([pid, n]) => (
+            <Alert key={pid} tone="highlight">
+              심사위원 가입 신청 <b>{n}건</b>이 승인을 기다리고 있습니다 · {titleOf.get(pid) ?? '프로그램'}{' '}
+              <Link href={`/a/p/${pid}/judges`} className="font-semibold underline">승인하러 가기</Link>
+            </Alert>
+          ))}
+        </div>
+      )}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="운영 중 프로그램" value={active.length} hint={drafts.length ? `준비 중 ${drafts.length}개` : undefined} />
