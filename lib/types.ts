@@ -31,6 +31,7 @@ export interface Program {
   retention_years: number
   closed_at: string | null
   payment_per_session: number
+  payments_enabled: boolean // 심사위원 수당 정산 사용 (끄면 정산 메뉴 숨김)
   created_at: string
 }
 
@@ -60,6 +61,8 @@ export interface Stage {
   appeal_days: number
   deviation_alert: number
   is_presentation: boolean
+  pass_score: number | null          // 합격선 (최종 점수 기준). null = 미사용
+  overall_comment_required: boolean  // 종합 심사평 필수
   published_at: string | null
   eval_notified_at: string | null
 }

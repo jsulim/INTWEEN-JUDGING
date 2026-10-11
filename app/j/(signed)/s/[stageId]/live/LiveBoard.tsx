@@ -59,7 +59,7 @@ function Timer({ slot }: { slot: PresentationSlot }) {
 }
 
 export default function LiveBoard({ stage, programTitle, criteria, companies, initialSlots, canReportConflict }: {
-  stage: { id: string; name: string; status: StageStatus }
+  stage: { id: string; name: string; status: StageStatus; overall_comment_required: boolean }
   programTitle: string
   criteria: Criterion[]
   companies: LiveCompany[]
@@ -204,6 +204,7 @@ export default function LiveBoard({ stage, programTitle, criteria, companies, in
                   lock={c.lock}
                   canReportConflict={canReportConflict}
                   showQnaMemo
+                  overallRequired={stage.overall_comment_required}
                   size="lg"
                 />
               </div>

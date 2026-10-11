@@ -78,6 +78,7 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
               lock={lock}
               canReportConflict={d.stage.status === 'evaluating' && !d.evalSubmitted}
               showQnaMemo={d.stage.is_presentation}
+              overallRequired={d.stage.overall_comment_required}
             />
           </div>
         </div>

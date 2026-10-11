@@ -54,6 +54,7 @@ export default async function StageCompanies({ params }: { params: { stageId: st
           field: r.field,
           state: r.state,
           total: r.total,
+          order: r.order_no,
         }))}
       />
     </>

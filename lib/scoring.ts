@@ -66,6 +66,10 @@ export interface CompanyResult {
   tied: boolean
 }
 
+/** 합격선 미달 여부 (합격선 미설정·미집계면 false) */
+export const belowPass = (final: number | null, passScore: number | null | undefined) =>
+  passScore != null && final != null && final < Number(passScore)
+
 export const NORMALIZE_MIN_SAMPLES = 5
 export const TRIM_MIN_JUDGES = 5
 

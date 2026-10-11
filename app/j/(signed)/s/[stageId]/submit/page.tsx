@@ -20,7 +20,8 @@ export default async function SubmitPage({ params }: { params: { stageId: string
   const base = `/j/s/${d.stage.id}`
   const targets = d.rows.filter(r => !r.conflict)
   const incomplete = targets
-    .map(r => ({ ...r, missing: missingItems(d.criteria, d.scores.get(r.assignment_id) ?? []) }))
+    .map(r => ({ ...r, missing: missingItems(d.criteria, d.scores.get(r.assignment_id) ?? [],
+      { required: d.stage.overall_comment_required, comment: d.reviews.get(r.assignment_id)?.overall_comment }) }))
     .filter(r => r.missing.length > 0)
   const sub = d.evalSub
 

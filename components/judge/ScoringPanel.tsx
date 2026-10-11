@@ -61,6 +61,8 @@ export interface ScoringPanelProps {
   /** '이해관계 있음' 신고 버튼 노출 */
   canReportConflict?: boolean
   showQnaMemo?: boolean
+  /** 종합 심사평 필수 (단계 설정) */
+  overallRequired?: boolean
   size?: 'md' | 'lg'
 }
 
@@ -248,7 +250,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
   const current = useMemo(() => criteria.map(c => ({
     criterion_id: c.id, score: validNum(vals[c.id]?.score ?? '', c.max_score), comment: vals[c.id]?.comment ?? null,
   })), [criteria, vals])
-  const missing = missingItems(criteria, current)
+  const missing = missingItems(criteria, current, { required: !!props.overallRequired, comment: overall })
   const total = current.reduce((a, s) => a + (s.score ?? 0), 0)
   const maxTotal = criteria.reduce((a, c) => a + c.max_score, 0)
   const readOnly = !!lock
@@ -352,7 +354,9 @@ export default function ScoringPanel(props: ScoringPanelProps) {
         })}
 
         <section className="rounded-lg border border-line bg-card p-4">
-          <div className="mb-2 font-bold">종합 심사평</div>
+          <div className="mb-2 font-bold">
+            종합 심사평{props.overallRequired && <span className="ml-1 text-sm font-semibold text-danger">(필수)</span>}
+          </div>
           <Textarea value={overall} disabled={readOnly} onChange={e => onReview('overall_comment', e.target.value)}
             placeholder="기업에 대한 종합 의견" className="min-h-[110px] text-sm" />
         </section>

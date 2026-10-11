@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { Badge, Button, Card, Empty, Field, Input, Select, Table, buttonClass, cn } from '@/components/ui'
 import { EligibilityBadge, ResultBadge } from '@/components/StatusBadges'
 import { Check, Feedback, errMsg, must, useRun } from '@/components/admin/setup/client'
+import { BUCKET_NAME, MAX_UPLOAD_BYTES, SIZE_ERROR } from '@/components/company/rules'
 import type { Company, Eligibility, EntryResult, Stage } from '@/lib/types'
 
 export type InviteState = 'none' | 'invited' | 'joined'
@@ -25,6 +26,55 @@ const EMPTY = { name: '', biz_no: '', ceo: '', field: '', email: '', send: true 
 function templateHref() {
   const csv = '﻿기업명,사업자번호,대표자,분야,이메일\n(예시)인트윈랩,123-45-67890,홍길동,AI·데이터,ceo@example.com\n'
   return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`
+}
+
+/** 운영팀 대리 업로드: 참가팀이 메일로 보낸 자료를 검수 후 대신 올린다 (버전 보관, 접수 기간 무관) */
+function AdminUpload({ stage, entryId, companyName }: { stage: Stage; entryId: string; companyName: string }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  if (!stage.required_files.length || stage.status === 'locked' || stage.status === 'published') return null
+
+  async function upload(fileType: string, label: string, file: File) {
+    if (file.size > MAX_UPLOAD_BYTES) return setMsg({ ok: false, text: SIZE_ERROR })
+    setBusy(fileType)
+    setMsg(null)
+    try {
+      const base = { entry_id: entryId, file_type: fileType, file_name: file.name, size: file.size }
+      const t = await api<{ path: string; token: string; contentType: string }>('/api/admin/submissions', { body: { action: 'ticket', ...base } })
+      const { error } = await supabaseBrowser().storage.from(BUCKET_NAME)
+        .uploadToSignedUrl(t.path, t.token, new Blob([file], { type: t.contentType }), { contentType: t.contentType })
+      if (error) throw new Error('파일을 업로드하지 못했습니다. 네트워크 상태를 확인해 주세요.')
+      await api('/api/admin/submissions', { body: { action: 'complete', path: t.path, ...base } })
+      setMsg({ ok: true, text: `${label} 업로드 완료` })
+      router.refresh()
+    } catch (e) {
+      setMsg({ ok: false, text: errMsg(e) })
+    } finally { setBusy(null) }
+  }
+
+  return (
+    <div className="mt-1">
+      <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => setOpen(o => !o)}>
+        {open ? '닫기' : '대리 업로드'}
+      </button>
+      {open && (
+        <div className="mt-1 grid gap-1.5 rounded-md border border-line bg-bg p-2">
+          {stage.required_files.map(f => (
+            <label key={f.type} className={cn(buttonClass('outline', 'sm'), 'cursor-pointer justify-start', busy && 'pointer-events-none opacity-50')}>
+              {busy === f.type ? '업로드 중…' : `${f.label} (${f.accept.map(a => a.toUpperCase()).join('/')})`}
+              <input type="file" className="hidden" accept={f.accept.map(a => `.${a}`).join(',')} disabled={!!busy}
+                aria-label={`${companyName} ${f.label} 업로드`}
+                onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) upload(f.type, f.label, file) }} />
+            </label>
+          ))}
+          <p className="text-[11px] leading-snug text-muted">PDF 권장 (심사위원 뷰어 호환). 다시 올리면 새 버전으로 교체되고 이전 파일은 보관됩니다.</p>
+          {msg && <p className={cn('text-xs', msg.ok ? 'text-accent' : 'text-danger')}>{msg.text}</p>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function CompanyRow({ c, stages, onInvite, busyAll }: { c: CompanyView; stages: Stage[]; onInvite: (c: CompanyView) => Promise<void>; busyAll: boolean }) {
@@ -84,6 +134,7 @@ function CompanyRow({ c, stages, onInvite, busyAll }: { c: CompanyView; stages: 
               {cell.eligibility !== 'pending' && <EligibilityBadge value={cell.eligibility} />}
               {(s.status === 'published' || cell.result !== 'pending') && <ResultBadge value={cell.result} />}
             </div>
+            <AdminUpload stage={s} entryId={cell.entry_id} companyName={c.name} />
           </td>
         )
       })}

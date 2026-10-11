@@ -29,7 +29,7 @@ export default async function LivePage({ params }: { params: { stageId: string }
 
   return (
     <LiveBoard
-      stage={{ id: d.stage.id, name: d.stage.name, status: d.stage.status }}
+      stage={{ id: d.stage.id, name: d.stage.name, status: d.stage.status, overall_comment_required: d.stage.overall_comment_required }}
       programTitle={d.program.title}
       criteria={d.criteria}
       companies={companies}

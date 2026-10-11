@@ -79,14 +79,16 @@ export const POST = handle(async (req: Request) => {
   const valid = new Set(ids)
   const byAssignment = new Map<string, ScoreRow[]>()
   for (const s of scores.filter(x => valid.has(x.assignment_id))) byAssignment.set(s.assignment_id, [...(byAssignment.get(s.assignment_id) ?? []), s])
+  const reviewMap = new Map(reviews.map(r => [r.assignment_id, r]))
+  const overallRequired = stage.overall_comment_required
   const incomplete = assignments
-    .map(a => ({ company_id: a.company_id, name: nameOf(a.company_id), missing: missingItems(criteria, byAssignment.get(a.id) ?? []) }))
+    .map(a => ({ company_id: a.company_id, name: nameOf(a.company_id),
+      missing: missingItems(criteria, byAssignment.get(a.id) ?? [], { required: overallRequired, comment: reviewMap.get(a.id)?.overall_comment }) }))
     .filter(x => x.missing.length > 0)
   if (incomplete.length) {
     return NextResponse.json({ error: `평가가 끝나지 않은 기업이 ${incomplete.length}개 있습니다.`, incomplete }, { status: 422 })
   }
 
-  const reviewMap = new Map(reviews.map(r => [r.assignment_id, r]))
   const rows = assignments
     .map(a => {
       const sc = byAssignment.get(a.id) ?? []

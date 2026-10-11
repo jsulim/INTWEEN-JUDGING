@@ -13,14 +13,16 @@ export interface ListRow {
   field: string | null
   state: EvalState
   total: number | null
+  order: number | null // 발표 순서
 }
 
-type SortKey = 'code' | 'name' | 'state' | 'score_desc' | 'score_asc'
+type SortKey = 'order' | 'code' | 'name' | 'state' | 'score_desc' | 'score_asc'
 const STATE_ORDER: Record<EvalState, number> = { none: 0, draft: 1, done: 2, conflict: 3 }
 
 export default function CompanyList({ base, rows, maxTotal, blind }: { base: string; rows: ListRow[]; maxTotal: number; blind: boolean }) {
   const [q, setQ] = useState('')
-  const [sort, setSort] = useState<SortKey>('code')
+  const hasOrder = rows.some(r => r.order != null)
+  const [sort, setSort] = useState<SortKey>(hasOrder ? 'order' : 'code')
   const [filter, setFilter] = useState<EvalState | 'all'>('all')
 
   const list = useMemo(() => {
@@ -29,6 +31,7 @@ export default function CompanyList({ base, rows, maxTotal, blind }: { base: str
       && (!kw || [r.name, r.code, r.field].some(v => v?.toLowerCase().includes(kw))))
     const byCode = (a: ListRow, b: ListRow) => naturalCompare(a.code ?? a.name, b.code ?? b.name)
     const cmp: Record<SortKey, (a: ListRow, b: ListRow) => number> = {
+      order: (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || byCode(a, b),
       code: byCode,
       name: (a, b) => naturalCompare(a.name, b.name),
       state: (a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || byCode(a, b),
@@ -50,6 +53,7 @@ export default function CompanyList({ base, rows, maxTotal, blind }: { base: str
           <option value="conflict">제외(이해충돌)</option>
         </Select>
         <Select value={sort} onChange={e => setSort(e.target.value as SortKey)} className="w-36">
+          {hasOrder && <option value="order">발표순</option>}
           <option value="code">코드순</option>
           {!blind && <option value="name">이름순</option>}
           <option value="state">상태순</option>
@@ -61,6 +65,7 @@ export default function CompanyList({ base, rows, maxTotal, blind }: { base: str
         <Table>
           <thead>
             <tr>
+              {hasOrder && <th className="w-16">순서</th>}
               <th className="w-24">코드</th>
               <th>{blind ? '표시명' : '기업명'}</th>
               <th className="hidden sm:table-cell">분야</th>
@@ -74,6 +79,7 @@ export default function CompanyList({ base, rows, maxTotal, blind }: { base: str
               const excluded = r.state === 'conflict'
               return (
                 <tr key={r.company_id} className={cn(excluded ? 'text-muted' : 'hover:bg-bg')}>
+                  {hasOrder && <td className="tabular font-bold">{r.order ?? '-'}</td>}
                   <td className="tabular">{r.code ?? '-'}</td>
                   <td className="font-semibold">
                     {excluded ? r.name : <Link href={`${base}/c/${r.company_id}`} className="hover:text-primary">{r.name}</Link>}

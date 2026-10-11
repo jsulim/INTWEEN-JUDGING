@@ -2,7 +2,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
-import type { CompanyResult, JudgeTotal } from '@/lib/scoring'
+import { belowPass, type CompanyResult, type JudgeTotal } from '@/lib/scoring'
 import { loadStageResults } from '@/lib/server/stage-data'
 import { downloadBytes } from '@/lib/server/storage'
 import { sha256 } from '@/lib/server/crypto'
@@ -181,6 +181,7 @@ export async function buildResultsWorkbook(r: StageReport) {
     { header: '가감점', key: 'bonus', width: 9 },
     { header: '최종 점수', key: 'final', width: 10 },
     { header: '과락', key: 'cutoff', width: 8 },
+    { header: '합격선', key: 'pass', width: 10 },
     { header: '비고', key: 'note', width: 26 },
   ]
   styleHeader(ws)
@@ -195,14 +196,16 @@ export async function buildResultsWorkbook(r: StageReport) {
       rank: x.rank ?? '-', code: c?.blind_code ?? '', name: companyLabel(c),
       judges: `${x.done_count}/${x.judge_count}`,
       raw: x.raw, norm: normalize ? x.normalized : '미사용', bonus: x.bonus, final: x.final,
-      cutoff: x.cutoff ? '과락' : '', note: notes.join(' · '),
+      cutoff: x.cutoff ? '과락' : '',
+      pass: stage.pass_score == null || x.final == null ? '' : belowPass(x.final, stage.pass_score) ? '미달' : '이상',
+      note: notes.join(' · '),
     })
     if (x.rank === 1) row.eachCell(cell => { cell.fill = TOP_FILL })
   }
   for (const k of ['raw', 'norm', 'bonus', 'final']) ws.getColumn(k).numFmt = '0.000'
   ws.addRow([])
   ws.addRow([`${r.program.title} · ${stage.name}`])
-  ws.addRow([`집계 기준: ${sourceNote} · 정규화 ${normalize ? '사용' : '미사용'} · 최고·최저 제외 ${stage.trim_extremes ? '사용(5인 이상)' : '미사용'} · 가점 상한 ±${stage.bonus_cap}`])
+  ws.addRow([`집계 기준: ${sourceNote} · 정규화 ${normalize ? '사용' : '미사용'} · 최고·최저 제외 ${stage.trim_extremes ? '사용(5인 이상)' : '미사용'} · 가점 상한 ±${stage.bonus_cap}${stage.pass_score != null ? ` · 합격선 ${Number(stage.pass_score)}점` : ''}`])
 
   // 2) 점수매트릭스 (기업 × 심사위원 합계)
   const wm = wb.addWorksheet('점수매트릭스')

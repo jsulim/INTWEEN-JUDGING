@@ -4,11 +4,11 @@ import { requireRole } from '@/lib/server/auth'
 
 export default async function ProgramLayout({ children, params }: { children: React.ReactNode; params: { id: string } }) {
   const { supabase } = await requireRole('admin')
-  const { data: program } = await supabase.from('programs').select('id, title').eq('id', params.id).maybeSingle()
+  const { data: program } = await supabase.from('programs').select('id, title, payments_enabled').eq('id', params.id).maybeSingle()
   if (!program) notFound()
   return (
     <>
-      <ProgramNav programId={program.id} title={program.title} />
+      <ProgramNav programId={program.id} title={program.title} paymentsEnabled={program.payments_enabled !== false} />
       {children}
     </>
   )

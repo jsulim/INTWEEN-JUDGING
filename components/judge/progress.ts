@@ -16,8 +16,8 @@ type R = { overall_comment: string | null; qna_memo?: string | null } | null | u
 
 const filled = (v: string | null | undefined) => !!v && v.trim().length > 0
 
-/** 미완료 항목 이름 목록 (점수 미입력 또는 필수 심사평 누락) */
-export function missingItems(criteria: C[], scores: S[]): string[] {
+/** 미완료 항목 이름 목록 (점수 미입력, 필수 심사평 누락, 단계 설정상 필수인 종합 심사평 누락) */
+export function missingItems(criteria: C[], scores: S[], overall?: { required: boolean; comment: string | null | undefined }): string[] {
   const by = new Map(scores.map(s => [s.criterion_id, s]))
   const out: string[] = []
   for (const c of criteria) {
@@ -25,13 +25,15 @@ export function missingItems(criteria: C[], scores: S[]): string[] {
     if (!s || s.score == null || s.score === '') out.push(`${c.name} 점수`)
     else if (c.comment_required && !filled(s.comment)) out.push(`${c.name} 심사평`)
   }
+  if (overall?.required && !filled(overall.comment)) out.push('종합 심사평')
   return out
 }
 
 /** 완료 = 모든 항목 점수 입력 + 필수 심사평 입력. 일부라도 입력했으면 임시저장 */
-export function evalState(criteria: C[], scores: S[], review: R, conflict: boolean): EvalState {
+export function evalState(criteria: C[], scores: S[], review: R, conflict: boolean, overallRequired = false): EvalState {
   if (conflict) return 'conflict'
-  if (criteria.length > 0 && missingItems(criteria, scores).length === 0) return 'done'
+  if (criteria.length > 0
+    && missingItems(criteria, scores, { required: overallRequired, comment: review?.overall_comment }).length === 0) return 'done'
   const touched = scores.some(s => (s.score != null && s.score !== '') || filled(s.comment))
     || filled(review?.overall_comment) || filled(review?.qna_memo)
   return touched ? 'draft' : 'none'

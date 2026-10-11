@@ -4,11 +4,12 @@ import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
 import { fmtDate, fmtScore } from '@/lib/format'
-import type { CompanyResult } from '@/lib/scoring'
+import { belowPass, type CompanyResult } from '@/lib/scoring'
 import type { EntryResult, Stage } from '@/lib/types'
 import { Alert, Badge, Button, Card, Input, LinkButton, Stat, Table, Textarea, cn } from '@/components/ui'
 import { ResultBadge, StageStatusBadge } from '@/components/StatusBadges'
 import { ConfirmDialog, DownloadLink, Toggle, callApi } from './ui'
+import ScoreEditDialog, { type ScoreEditTarget } from './ScoreEditDialog'
 
 export interface ResultsViewProps {
   programId: string
@@ -107,6 +108,10 @@ export default function ResultsView(p: ResultsViewProps) {
     if (!n || n < 1) return
     setSelected(new Set(results.filter(r => r.rank != null && r.rank <= n && !r.cutoff).map(r => r.company_id)))
   }
+  const passScore = stage.pass_score == null ? null : Number(stage.pass_score)
+  function pickPassing() {
+    setSelected(new Set(results.filter(r => r.rank != null && !r.cutoff && !belowPass(r.final, passScore)).map(r => r.company_id)))
+  }
   async function advance() {
     setBusy(true)
     try {
@@ -122,6 +127,14 @@ export default function ResultsView(p: ResultsViewProps) {
   }
 
   // ── 재오픈
+  const [edit, setEdit] = useState<ScoreEditTarget | null>(null)
+  function openEdit(a: { id: string; company_id: string }, judgeName: string) {
+    setEdit({
+      assignment_id: a.id, judgeName, companyName: label(a.company_id),
+      scores: p.scores.filter(s => s.assignment_id === a.id),
+      overall: reviewOf.get(a.id)?.overall_comment ?? null,
+    })
+  }
   const [reopen, setReopen] = useState<{ judge_id: string; name: string } | null>(null)
   const [reason, setReason] = useState('')
   async function doReopen() {
@@ -170,7 +183,8 @@ export default function ResultsView(p: ResultsViewProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="심사 대상 기업" value={results.length} hint={`과락 ${results.filter(r => r.cutoff).length}개`} />
+        <Stat label="심사 대상 기업" value={results.length}
+          hint={`과락 ${results.filter(r => r.cutoff).length}개${passScore != null ? ` · 합격선 미달 ${results.filter(r => belowPass(r.final, passScore)).length}개` : ''}`} />
         <Stat label="집계 완료 기업" value={`${doneCompanies}/${results.length}`} tone={doneCompanies === results.length ? 'accent' : 'highlight'}
           hint={doneCompanies < results.length ? '미평가 심사위원 있음 → 집계 중' : '모든 평가 완료'} />
         <Stat label="최종 제출 심사위원" value={`${submittedJudges}/${p.progress.length}`} tone={submittedJudges === p.progress.length && p.progress.length > 0 ? 'accent' : 'highlight'} />
@@ -187,6 +201,7 @@ export default function ResultsView(p: ResultsViewProps) {
           <div className="text-sm text-muted">
             <div>가점·감점 상한 <b className="tabular text-fg">±{Number(stage.bonus_cap)}</b>점 (승인분만)</div>
             <div>편차 경고 기준 <b className="tabular text-fg">{Number(stage.deviation_alert)}</b>점</div>
+            <div>합격선 <b className="tabular text-fg">{passScore != null ? `${passScore}점` : '미사용'}</b></div>
             <div>동점: 우선 항목 평균 → 공동 순위</div>
           </div>
         </div>
@@ -228,6 +243,7 @@ export default function ResultsView(p: ResultsViewProps) {
                     <td className={cn('tabular text-right text-base font-bold', top && 'text-[#b07a00]')}>{fmtScore(r.final, 3)}</td>
                     <td>
                       <div className="flex flex-wrap gap-1">
+                        {belowPass(r.final, passScore) && <Badge tone="danger">합격선 미달</Badge>}
                         {r.cutoff && <Badge tone="danger" >과락 · {r.cutoff_criteria.map(id => crit.get(id)?.name).join(', ')}</Badge>}
                         {r.in_progress && <Badge tone="highlight">집계 중</Badge>}
                         {r.deviation_alert && <Badge tone="highlight">편차 {fmtScore(r.deviation)}</Badge>}
@@ -254,6 +270,7 @@ export default function ResultsView(p: ResultsViewProps) {
             <div className="w-28"><label className="mb-1 block text-sm font-semibold">상위</label>
               <Input type="number" min={1} value={topN} onChange={e => setTopN(e.target.value)} placeholder="N" /></div>
             <Button variant="outline" onClick={pickTop} disabled={!topN}>상위 {topN || 'N'}개 선택</Button>
+            {passScore != null && <Button variant="outline" onClick={pickPassing}>합격선({passScore}점) 이상 선택</Button>}
             <Button variant="ghost" onClick={() => setSelected(new Set())}>선택 해제</Button>
             <div className="ml-auto text-sm text-muted">선택 <b className="tabular text-fg">{selected.size}</b>개 · 탈락 <b className="tabular text-fg">{results.length - selected.size}</b>개</div>
             <Button onClick={() => setAdvOpen(true)} disabled={busy}>{p.nextStage ? `통과 확정 → ${p.nextStage.name} 이관` : '통과 확정 (최종 단계)'}</Button>
@@ -263,7 +280,7 @@ export default function ResultsView(p: ResultsViewProps) {
       )}
 
       {/* 점수 매트릭스 */}
-      <Card title="기업 × 심사위원 점수" actions={<span className="text-xs text-muted">심사위원 합계{stage.normalize ? ' · 괄호 = 정규화' : ''}</span>}>
+      <Card title="기업 × 심사위원 점수" actions={<span className="text-xs text-muted">심사위원 합계{stage.normalize ? ' · 괄호 = 정규화' : ''}{!locked && ' · 점수를 누르면 수정'}</span>}>
         {judges.length === 0 ? <p className="text-muted">배정된 심사위원이 없습니다.</p> : (
           <Table>
             <thead>
@@ -284,11 +301,18 @@ export default function ResultsView(p: ResultsViewProps) {
                       const t = totals.get(j.id)
                       if (!a) return <td key={j.id} className="text-right text-muted/50">·</td>
                       if (a.conflict) return <td key={j.id} className="text-right" title={a.conflict_reason ?? '이해충돌'}><Badge tone="danger">충돌</Badge></td>
-                      if (t?.total == null) return <td key={j.id} className="text-right"><span className="text-xs text-[#8a5a00]">미완료</span></td>
-                      return (
-                        <td key={j.id} className="tabular text-right">
+                      const cell = t?.total == null ? <span className="text-xs text-[#8a5a00]">미완료</span> : (
+                        <>
                           {fmtScore(t.total)}
                           {stage.normalize && <div className="text-xs text-muted">{t.normalization_applied ? `(${fmtScore(t.normalized)})` : '(미적용)'}</div>}
+                        </>
+                      )
+                      return (
+                        <td key={j.id} className="tabular text-right">
+                          {locked ? cell : (
+                            <button type="button" onClick={() => openEdit(a, j.name)} title="점수 수정"
+                              className="rounded px-1.5 py-0.5 underline decoration-dotted underline-offset-4 hover:bg-primary/10">{cell}</button>
+                          )}
                         </td>
                       )
                     })}
@@ -423,6 +447,9 @@ export default function ResultsView(p: ResultsViewProps) {
           <p>확정하면 심사위원 점수·심사평 수정이 잠기고, 현재 집계 결과({results.length}개 기업)가 stage_results 스냅샷으로 저장됩니다. 확정 해제는 단계 관리에서 사유와 함께 가능합니다.</p>
         )}
       </ConfirmDialog>
+
+      <ScoreEditDialog target={edit} criteria={criteria} onClose={() => setEdit(null)}
+        onSaved={() => { setEdit(null); setMsg({ tone: 'accent', text: '점수를 수정했습니다. 감사로그에 기록되었습니다.' }); router.refresh() }} />
 
       <ConfirmDialog open={pubOpen} title="결과를 공개할까요?" busy={busy} confirmLabel="결과 공개" onClose={() => setPubOpen(false)} onConfirm={publish}>
         <p>참가 기업이 결과 확인 화면에서 통과/탈락을 볼 수 있습니다.{stage.score_visible ? ' 점수도 공개됩니다.' : ' 점수는 비공개입니다.'} 이의신청 기간 {stage.appeal_days}일이 시작됩니다.</p>

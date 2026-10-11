@@ -22,7 +22,7 @@ export const PROGRAM_TABS = [
   { seg: 'notices', label: '공지' },
 ]
 
-export default function ProgramNav({ programId, title }: { programId: string; title: string }) {
+export default function ProgramNav({ programId, title, paymentsEnabled = true }: { programId: string; title: string; paymentsEnabled?: boolean }) {
   const pathname = usePathname()
   const base = `/a/p/${programId}`
   return (
@@ -32,7 +32,7 @@ export default function ProgramNav({ programId, title }: { programId: string; ti
         <span className="font-semibold text-fg">{title}</span>
       </div>
       <nav className="flex gap-1 overflow-x-auto border-b border-line">
-        {PROGRAM_TABS.map(t => {
+        {PROGRAM_TABS.filter(t => paymentsEnabled || t.seg !== 'payments').map(t => {
           const href = t.seg ? `${base}/${t.seg}` : base
           const active = t.seg ? pathname.startsWith(href) : pathname === base
           return (

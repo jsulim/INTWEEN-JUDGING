@@ -33,13 +33,14 @@ function normCriterion(c: Criterion): Criterion {
 export interface StageRow extends BlindCompanyRow {
   state: EvalState
   total: number | null
+  order_no: number | null // 발표 순서 (presentation_slots). 편성 전이면 null
 }
 
 export interface JudgeStageData {
   stage: Stage
   program: Program
   judge: Judge
-  rows: StageRow[] // 배정 기업 (자연 정렬)
+  rows: StageRow[] // 배정 기업 (발표 순서 → 코드 자연 정렬)
   criteria: Criterion[]
   scores: Map<string, Score[]> // assignment_id → scores
   reviews: Map<string, Review>
@@ -58,7 +59,7 @@ export async function loadJudgeStage(supabase: SupabaseClient, userId: string, s
   ])
   if (!program || !judge) return null
 
-  const [{ data: blind }, { data: criteria }, scores, reviews, { data: evalSub }] = await Promise.all([
+  const [{ data: blind }, { data: criteria }, scores, reviews, { data: evalSub }, { data: slots }] = await Promise.all([
     supabase.from('v_companies_blind').select('*').eq('stage_id', stageId).eq('judge_id', judge.id),
     supabase.from('criteria').select('*').eq('stage_id', stageId).order('order_no'),
     fetchAll<Score & { assignments?: unknown }>((f, t) =>
@@ -68,6 +69,7 @@ export async function loadJudgeStage(supabase: SupabaseClient, userId: string, s
       supabase.from('reviews').select('id, assignment_id, overall_comment, qna_memo, status, assignments!inner(stage_id)')
         .eq('assignments.stage_id', stageId).order('id').range(f, t)),
     supabase.from('evaluation_submissions').select('*').eq('stage_id', stageId).eq('judge_id', judge.id).maybeSingle(),
+    supabase.from('presentation_slots').select('company_id, order_no').eq('stage_id', stageId),
   ])
   if (!blind || blind.length === 0) return null
 
@@ -85,17 +87,19 @@ export async function loadJudgeStage(supabase: SupabaseClient, userId: string, s
     reviewMap.set(row.assignment_id, row)
   }
 
+  const orderOf = new Map(((slots ?? []) as { company_id: string; order_no: number }[]).map(s => [s.company_id, s.order_no]))
   const counts = { total: 0, done: 0, draft: 0, none: 0, conflict: 0 }
   const rows: StageRow[] = ((blind ?? []) as BlindCompanyRow[])
     .map(b => {
       const sc = scoreMap.get(b.assignment_id) ?? []
-      const state = evalState(crit, sc, reviewMap.get(b.assignment_id), b.conflict)
+      const state = evalState(crit, sc, reviewMap.get(b.assignment_id), b.conflict, stage.overall_comment_required)
       counts[state]++
       if (state !== 'conflict') counts.total++
       const total = sc.some(s => s.score != null) ? sc.reduce((a, s) => a + (s.score ?? 0), 0) : null
-      return { ...b, state, total }
+      return { ...b, state, total, order_no: orderOf.get(b.company_id) ?? null }
     })
-    .sort((a, b) => naturalCompare(a.blind_code ?? a.display_name, b.blind_code ?? b.display_name))
+    .sort((a, b) => (a.order_no ?? Infinity) - (b.order_no ?? Infinity)
+      || naturalCompare(a.blind_code ?? a.display_name, b.blind_code ?? b.display_name))
 
   const es = (evalSub as EvaluationSubmission | null) ?? null
   return {

@@ -65,7 +65,8 @@ export const POST = handle(async (req: Request, { params }: { params: { id: stri
   if (upErr) throw upErr
   // 심사 대상에서 빠진 기업(부적격 처리 등)의 이전 스냅샷 정리
   const keep = results.map(r => r.company_id)
-  await supabase.from('stage_results').delete().eq('stage_id', stage.id).not('company_id', 'in', `(${keep.join(',')})`)
+  const stale = supabase.from('stage_results').delete().eq('stage_id', stage.id)
+  await (keep.length ? stale.not('company_id', 'in', `(${keep.join(',')})`) : stale)
 
   const { error: stErr } = await supabase.from('stages').update({ status: 'locked' }).eq('id', stage.id)
   if (stErr) throw stErr

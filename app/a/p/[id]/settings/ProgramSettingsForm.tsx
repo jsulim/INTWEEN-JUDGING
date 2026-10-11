@@ -15,6 +15,7 @@ export default function ProgramSettingsForm({ program }: { program: Program }) {
     description: program.description ?? '',
     retention_years: String(program.retention_years),
     payment_per_session: String(program.payment_per_session),
+    payments_enabled: program.payments_enabled,
     application_open: program.application_open,
     application_due: toLocalInput(program.application_due),
   })
@@ -29,6 +30,7 @@ export default function ProgramSettingsForm({ program }: { program: Program }) {
         description: f.description.trim() || null,
         retention_years: Number(f.retention_years) || 3,
         payment_per_session: Number(f.payment_per_session) || 0,
+        payments_enabled: f.payments_enabled,
         application_open: f.application_open,
         application_due: fromLocalInput(f.application_due),
         ...(f.status === 'closed' && !program.closed_at ? { closed_at: new Date().toISOString() } : {}),
@@ -61,9 +63,15 @@ export default function ProgramSettingsForm({ program }: { program: Program }) {
         <Field label="개인정보 보유기간 (년)" hint={program.closed_at ? `종료일 ${program.closed_at.slice(0, 10)} 기준` : '프로그램 종료일부터 기산'}>
           <Input type="number" min={1} max={20} value={f.retention_years} onChange={e => setF({ ...f, retention_years: e.target.value })} />
         </Field>
-        <Field label="심사 1회 수당 (원)">
-          <Input type="number" min={0} step={10000} value={f.payment_per_session} onChange={e => setF({ ...f, payment_per_session: e.target.value })} />
-        </Field>
+        <div className="grid gap-3">
+          <Check label="심사위원 수당 정산 사용" hint="끄면 관리자 '정산' 탭과 심사위원 '수당 지급 정보' 메뉴를 숨깁니다."
+            checked={f.payments_enabled} onChange={v => setF({ ...f, payments_enabled: v })} />
+          {f.payments_enabled && (
+            <Field label="심사 1회 수당 (원)">
+              <Input type="number" min={0} step={10000} value={f.payment_per_session} onChange={e => setF({ ...f, payment_per_session: e.target.value })} />
+            </Field>
+          )}
+        </div>
         <div className="rounded-md border border-line p-4 md:col-span-2">
           <div className="mb-3 font-semibold">신청서 접수 (C-06)</div>
           <div className="grid items-end gap-4 md:grid-cols-2">

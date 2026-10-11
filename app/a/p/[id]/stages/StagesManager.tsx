@@ -16,7 +16,8 @@ type Draft = {
   submit_start: string; submit_end: string; eval_start: string; eval_end: string
   required_files: RequiredFile[]
   score_visible: boolean; blind_mode: boolean; normalize: boolean; trim_extremes: boolean; is_presentation: boolean
-  bonus_cap: string; appeal_days: string; deviation_alert: string
+  overall_comment_required: boolean
+  bonus_cap: string; appeal_days: string; deviation_alert: string; pass_score: string
 }
 
 const PRESET_FILES: RequiredFile[] = [
@@ -36,6 +37,8 @@ function toDraft(s: Stage | null, nextOrder: number): Draft {
     normalize: s?.normalize ?? false,
     trim_extremes: s?.trim_extremes ?? false,
     is_presentation: s?.is_presentation ?? nextOrder > 1,
+    overall_comment_required: s?.overall_comment_required ?? false,
+    pass_score: s?.pass_score == null ? '' : String(s.pass_score),
     bonus_cap: String(s?.bonus_cap ?? 5),
     appeal_days: String(s?.appeal_days ?? 3),
     deviation_alert: String(s?.deviation_alert ?? 20),
@@ -63,6 +66,7 @@ function toRow(d: Draft) {
     required_files: d.required_files.map(f => ({ ...f, type: f.type.trim(), label: f.label.trim() })),
     score_visible: d.score_visible, blind_mode: d.blind_mode, normalize: d.normalize,
     trim_extremes: d.trim_extremes, is_presentation: d.is_presentation,
+    overall_comment_required: d.overall_comment_required, pass_score: num(d.pass_score),
     bonus_cap: num(d.bonus_cap) ?? 5, appeal_days: num(d.appeal_days) ?? 3, deviation_alert: num(d.deviation_alert) ?? 20,
   }
 }
@@ -132,10 +136,14 @@ function StageForm({ draft, setDraft, locked }: { draft: Draft; setDraft: (d: Dr
           hint="심사위원별 성향 보정(50+10·z). 1인 평가 기업 5개 미만이면 미적용, 원점수 병기" />
         <Check label="최고·최저 점수 제외" checked={draft.trim_extremes} onChange={v => setDraft({ ...draft, trim_extremes: v })}
           hint="심사위원 5명 이상일 때 최고·최저 1개씩 제외 후 평균" />
+        <Check label="종합 심사평 필수" checked={draft.overall_comment_required} onChange={v => setDraft({ ...draft, overall_comment_required: v })}
+          hint="켜면 기업마다 종합 심사평을 입력해야 '완료'가 되고 최종 제출할 수 있습니다." />
         <Check label="결과 공개 시 점수 공개" checked={draft.score_visible} onChange={v => setDraft({ ...draft, score_visible: v })}
           hint="끄면 기업에는 통과/탈락만 표시" />
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Field label="합격선 (점)" hint="최종 점수가 미달이면 '합격선 미달' 표시. 비우면 미사용">
+          <Input type="number" min={0} step={0.5} value={draft.pass_score} onChange={s('pass_score')} placeholder="예: 60" /></Field>
         <Field label="가점·감점 상한 (±점)"><Input type="number" min={0} step={0.5} value={draft.bonus_cap} onChange={s('bonus_cap')} /></Field>
         <Field label="이의신청 기간 (일)" hint="결과 공개 후"><Input type="number" min={0} value={draft.appeal_days} onChange={s('appeal_days')} /></Field>
         <Field label="점수 편차 경고 기준 (점)" hint="동일 기업 심사위원 간 총점 차"><Input type="number" min={0} step={1} value={draft.deviation_alert} onChange={s('deviation_alert')} /></Field>
@@ -270,6 +278,8 @@ function StageCard({ programId, stage, stats }: { programId: string; stage: Stag
             {stage.normalize && <Badge>정규화</Badge>}
             {stage.trim_extremes && <Badge>최고·최저 제외</Badge>}
             {stage.score_visible && <Badge>점수 공개</Badge>}
+            {stage.pass_score != null && <Badge tone="primary">합격선 {Number(stage.pass_score)}점</Badge>}
+            {stage.overall_comment_required && <Badge>종합 심사평 필수</Badge>}
             <Badge>가점 상한 ±{Number(stage.bonus_cap)}</Badge>
             <Badge>이의신청 {stage.appeal_days}일</Badge>
             <Badge>편차 경고 {Number(stage.deviation_alert)}점</Badge>
