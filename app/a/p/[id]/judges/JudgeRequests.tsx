@@ -5,13 +5,18 @@ import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/format'
 import { Badge, Button, Card, Input, Table } from '@/components/ui'
 import { Check, Feedback, must, useRun } from '@/components/admin/setup/client'
+import { EVENTS } from '@/lib/events'
 import type { JudgeRequest } from '@/lib/types'
 
 // 심사위원 자가 가입 신청 (A-06). 가입 링크를 열어 두면 심사위원이 Google·이메일로 신청하고, 여기서 승인한다.
 export default function JudgeRequests({ programId, open, requests }: { programId: string; open: boolean; requests: JudgeRequest[] }) {
   const { busy, error, notice, run, setNotice } = useRun()
   const [link, setLink] = useState('')
-  useEffect(() => { setLink(`${window.location.origin}/join/${programId}`) }, [programId])
+  useEffect(() => {
+    // 대회 전용 주소가 연결된 프로그램이면 그 주소의 짧은 링크를 안내한다
+    const ev = Object.values(EVENTS).find(e => e.programId === programId && e.host)
+    setLink(ev ? `https://${ev.host}/join` : `${window.location.origin}/join/${programId}`)
+  }, [programId])
   const pending = requests.filter(r => r.status === 'pending')
   const done = requests.filter(r => r.status !== 'pending')
 

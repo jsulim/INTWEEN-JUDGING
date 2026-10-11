@@ -7,6 +7,7 @@ const PROTECTED = ['/c', '/j', '/a', '/me', '/invite', '/mfa', '/home']
 // 대회 전용 하위 도메인(예: uljin-ideathon.sasurae.kr)
 //  · /      → 해당 대회 소개 페이지(/<slug>)
 //  · /join  → 연결된 프로그램의 심사위원 가입 신청 (/join/<program_id>)
+//  · /a/…   → 관리자 화면은 모든 대회 공용이므로 본체 주소(NEXT_PUBLIC_SITE_URL)로 보낸다
 //  · 그 밖의 경로(로그인·심사·관리자) → 같은 주소에서 플랫폼을 그대로 쓴다 (심사위원이 대회 주소 하나만 기억하면 되도록)
 function eventHost(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0] ?? ''
@@ -20,6 +21,10 @@ function eventHost(request: NextRequest) {
   if (url.pathname === '/join' && EVENT_JOIN[host]) {
     url.pathname = `/join/${EVENT_JOIN[host]}`
     return NextResponse.redirect(url)
+  }
+  const app = process.env.NEXT_PUBLIC_SITE_URL
+  if ((url.pathname === '/a' || url.pathname.startsWith('/a/')) && app && new URL(app).host !== host) {
+    return NextResponse.redirect(new URL(url.pathname + url.search, app))
   }
   return null
 }
