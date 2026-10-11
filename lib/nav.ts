@@ -17,6 +17,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { href: '/j', label: '대시보드', exact: true },
     { href: '/j/consent', label: '동의서' },
     { href: '/j/payment', label: '수당 지급 정보' },
+    { href: '/j/guide', label: '이용 안내' },
   ],
   admin: [
     { href: '/a', label: '통합 대시보드', exact: true },

@@ -33,10 +33,11 @@ test('동점: 사업성 → 연관성 순으로 가른다', () => {
 })
 
 test('종합 심사평 필수: 비어 있으면 미완료', () => {
-  const sc = criteria.map(c => ({ criterion_id: c.id, score: 20, comment: null }))
-  assert.deepEqual(missingItems(criteria, sc, { required: true, comment: '  ' }), ['종합 심사평'])
-  assert.deepEqual(missingItems(criteria, sc, { required: false, comment: null }), [])
-  assert.equal(evalState(criteria, sc, { overall_comment: null }, false, true), 'draft')
-  assert.equal(evalState(criteria, sc, { overall_comment: '우수' }, false, true), 'done')
-  assert.equal(evalState(criteria, sc, null, false), 'done')
+  const crit = criteria.map(c => ({ ...c, comment_required: false }))
+  const sc = crit.map(c => ({ criterion_id: c.id, score: 20, comment: null }))
+  assert.deepEqual(missingItems(crit, sc, { required: true, comment: '  ' }), ['종합 심사평'])
+  assert.deepEqual(missingItems(crit, sc, { required: false, comment: null }), [])
+  assert.equal(evalState(crit, sc, { overall_comment: null }, false, true), 'draft')
+  assert.equal(evalState(crit, sc, { overall_comment: '우수' }, false, true), 'done')
+  assert.equal(evalState(crit, sc, null, false), 'done')
 })
