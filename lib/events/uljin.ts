@@ -5,6 +5,7 @@ import type { EventConfig } from './types'
 export const uljin: EventConfig = {
   slug: 'uljin',
   host: 'uljin-ideathon.sasurae.kr',
+  programId: '038a66fd-6d52-4edf-a4df-403b858afd44',
   title: '2026 울진군 창업아이디어톤',
   year: '2026',
   region: '울진군',

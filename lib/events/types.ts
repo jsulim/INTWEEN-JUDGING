@@ -11,6 +11,7 @@ export type EventTheme = {
 export type EventConfig = {
   slug: string
   host?: string             // 전용 하위 도메인 (Cloudflare CNAME + Vercel Domains 에 등록)
+  programId?: string        // 연결된 심사 프로그램 — <host>/join 이 이 프로그램의 심사위원 가입으로 이어진다
   title: string             // 브라우저 탭 제목
   year: string
   region: string            // 히어로 첫 줄
