@@ -62,7 +62,14 @@ function useWatermark(name: string) {
   }, [name, now])
 }
 
-export default function PdfViewer({ files, watermarkName, className }: { files: ViewerFile[]; watermarkName: string; className?: string }) {
+export default function PdfViewer({ files, watermarkName, className, resolveUrl, emptyText = '제출된 자료가 없습니다.' }: {
+  files: ViewerFile[]
+  watermarkName: string
+  className?: string
+  /** 열람 URL 발급 방식 (기본: 제출 자료 /api/files/view-url). 심사위원 풀 공유 화면 등에서 바꿔 쓴다 */
+  resolveUrl?: (f: ViewerFile) => Promise<string>
+  emptyText?: string
+}) {
   const [active, setActive] = useState(files[0]?.submission_id ?? null)
   const file = files.find(f => f.submission_id === active) ?? null
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
@@ -93,7 +100,9 @@ export default function PdfViewer({ files, watermarkName, className }: { files: 
     setState('loading')
     ;(async () => {
       try {
-        const { url } = await api<{ url: string }>('/api/files/view-url', { body: { submission_id: file.submission_id } })
+        const url = resolveUrl
+          ? await resolveUrl(file)
+          : (await api<{ url: string }>('/api/files/view-url', { body: { submission_id: file.submission_id } })).url
         // 서명 URL(10분)을 오래 붙잡지 않도록 한 번에 받아 메모리에서 연다
         const res = await fetch(url)
         if (!res.ok) throw new Error(`파일을 불러오지 못했습니다 (${res.status})`)
@@ -137,7 +146,7 @@ export default function PdfViewer({ files, watermarkName, className }: { files: 
               className={cn('max-w-[16rem] truncate rounded-md px-3 py-1.5 text-sm font-semibold',
                 f.submission_id === active ? 'bg-primary text-primary-fg' : 'text-muted hover:bg-fg/5')}>
               {FILE_LABEL[f.file_type] ?? f.file_type}
-              <span className="ml-1 font-normal opacity-80">v{f.version}</span>
+              {f.version > 0 && <span className="ml-1 font-normal opacity-80">v{f.version}</span>}
             </button>
           ))}
         </div>
@@ -153,7 +162,7 @@ export default function PdfViewer({ files, watermarkName, className }: { files: 
       {file && <div className="truncate border-b border-line bg-card px-3 py-1 text-xs text-muted">{file.file_name}</div>}
 
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-auto p-4">
-        {files.length === 0 && <Message>제출된 자료가 없습니다.</Message>}
+        {files.length === 0 && <Message>{emptyText}</Message>}
         {state === 'loading' && <Message>불러오는 중…</Message>}
         {state === 'error' && (
           <Message>

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
 import type { JudgePoolEntry } from '@/lib/types'
+import { categoryLabel } from '@/lib/pool'
 import { Alert, Badge, Button, Empty, Field, Input, Select, Table, Textarea, cn } from '@/components/ui'
 import { ConfirmDialog } from './ui'
 
@@ -120,7 +121,13 @@ export default function PoolManager({ rows, programs }: { rows: PoolRow[]; progr
           <tbody>
             {list.map(r => (
               <tr key={r.id} className="align-top">
-                <td className="whitespace-nowrap font-semibold">{r.name}{r.user_id && <span className="ml-1 text-xs font-normal text-accent">계정</span>}</td>
+                <td className="whitespace-nowrap font-semibold">{r.name}{r.user_id && <span className="ml-1 text-xs font-normal text-accent">계정</span>}
+                  {(r.category || r.resume_path) && (
+                    <div className="mt-0.5 text-xs font-normal text-muted">
+                      {r.category && categoryLabel(r.category)}{r.resume_path && ' · 이력서'}{r.docs?.length ? ` · 증빙 ${r.docs.length}` : ''}{r.source && ` · ${r.source}`}
+                    </div>
+                  )}
+                </td>
                 <td>{r.affiliation ?? '-'}</td>
                 <td><div className="flex max-w-[240px] flex-wrap gap-1">{r.expertise.map(t => <Badge key={t} tone="primary">{t}</Badge>)}</div></td>
                 <td className="max-w-[240px] whitespace-pre-wrap text-sm text-muted">{r.career ?? ''}{r.note && <div className="mt-1 text-xs">메모: {r.note}</div>}</td>

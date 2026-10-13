@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/ui'
 import PoolManager, { type PoolRow } from '@/components/admin/results/PoolManager'
+import PoolImport from '@/components/admin/results/PoolImport'
 import { requireRole } from '@/lib/server/auth'
 import type { Judge, JudgePoolEntry, Program } from '@/lib/types'
 
@@ -34,6 +35,7 @@ export default async function PoolPage() {
   return (
     <>
       <PageHeader title="심사위원 풀" description="전문분야로 검색하고 다음 프로그램에 바로 배정(초대)합니다. 참여 이력은 프로그램별 심사위원 등록 기록에서 자동으로 만듭니다." />
+      <div className="mb-6"><PoolImport /></div>
       <PoolManager rows={rows} programs={progs.filter(p => p.status !== 'archived').map(p => ({ id: p.id, title: p.title, status: p.status }))} />
     </>
   )

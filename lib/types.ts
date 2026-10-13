@@ -343,6 +343,26 @@ export interface JudgePoolEntry {
   career: string | null
   history: { program_id: string; title: string; year: number }[]
   note: string | null
+  category: string | null
+  position: string | null
+  source: string | null      // 추천 경로 (내부용)
+  resume_path: string | null
+  docs: { label: string; path: string }[]
+  shareable: boolean
+}
+
+/** 심사위원 풀 공유 링크 (기관 검토용) */
+export interface PoolShare {
+  id: string
+  token: string
+  title: string
+  program_id: string | null
+  categories: string[] | null
+  expires_at: string | null
+  revoked_at: string | null
+  view_count: number
+  last_viewed_at: string | null
+  created_at: string
 }
 
 // 뷰
