@@ -33,8 +33,11 @@ export async function shareEntries(s: PoolShare) {
     .filter(e => !s.categories?.length || allCategories(e).some(c => s.categories!.includes(c)))
 }
 
-/** 이 링크에서 별표로 고른 심사위원 id (테이블이 아직 없으면 빈 목록) */
-export async function sharePicks(shareId: string): Promise<string[]> {
-  const { data } = await supabaseAdmin().from('pool_share_picks').select('pool_id').eq('share_id', shareId).order('created_at')
-  return (data ?? []).map(x => x.pool_id as string)
+/** 이 링크에서 별표로 고른 심사위원과 담은 분야 (분야 컬럼 이전 기록은 category '') */
+export async function sharePicks(shareId: string): Promise<{ id: string; category: string }[]> {
+  const t = () => supabaseAdmin().from('pool_share_picks')
+  const { data, error } = await t().select('pool_id, category').eq('share_id', shareId).order('created_at')
+  if (!error) return (data ?? []).map(x => ({ id: x.pool_id as string, category: (x.category as string) ?? '' }))
+  const { data: old } = await t().select('pool_id').eq('share_id', shareId).order('created_at')
+  return (old ?? []).map(x => ({ id: x.pool_id as string, category: '' }))
 }

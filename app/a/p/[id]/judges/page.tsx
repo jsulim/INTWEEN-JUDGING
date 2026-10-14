@@ -24,14 +24,15 @@ export default async function JudgesPage({ params }: { params: { id: string } })
   // 공유 링크별 기관 선정(별표) 목록
   const shareIds = ((shares ?? []) as PoolShare[]).map(s => s.id)
   const { data: pickRows } = shareIds.length
-    ? await supabase.from('pool_share_picks').select('share_id, pool_id').in('share_id', shareIds).order('created_at')
+    ? await supabase.from('pool_share_picks').select('share_id, pool_id, category').in('share_id', shareIds).order('created_at')
     : { data: [] }
   const poolById = new Map(((pool ?? []) as JudgePoolEntry[]).map(p => [p.id, p]))
   const picks: Record<string, { name: string; affiliation: string | null; category: string | null }[]> = {}
-  for (const r of (pickRows ?? []) as { share_id: string; pool_id: string }[]) {
+  for (const r of (pickRows ?? []) as { share_id: string; pool_id: string; category: string | null }[]) {
     const p = poolById.get(r.pool_id)
-    if (p) (picks[r.share_id] ??= []).push({ name: p.name, affiliation: p.affiliation, category: p.category })
+    if (p) (picks[r.share_id] ??= []).push({ name: p.name, affiliation: p.affiliation, category: r.category || p.category })
   }
+  for (const l of Object.values(picks)) l.sort((x, y) => (x.category ?? '99').localeCompare(y.category ?? '99'))
   const judges = (judgeRows ?? []) as Judge[]
   const judgeIds = judges.map(j => j.id)
   const [profs, { data: consents }, { data: conflicts }] = await Promise.all([

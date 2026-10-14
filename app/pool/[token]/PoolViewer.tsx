@@ -31,7 +31,7 @@ function Star({ on, onClick, className }: { on: boolean; onClick: () => void; cl
 
 const sourceLabel = (s: string | null) => (s ? `${s.split('+').map(x => x.trim()).filter(Boolean).join(' · ')} 추천` : null)
 
-function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: string[]; picked: boolean; onPick: () => void }) {
+function ProfilePanel({ c, category, picked, onPick, pickAs }: { c: PoolCard; category: string[]; picked: boolean; onPick: () => void; pickAs: string | null }) {
   const p = c.profile ?? {}
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <section className="border-t border-line pt-4">
@@ -51,7 +51,7 @@ function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: 
           <button type="button" onClick={onPick}
             className={cn('inline-flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-sm font-semibold transition-colors',
               picked ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-line text-muted hover:border-amber-300 hover:text-fg')}>
-            <span className={picked ? 'text-amber-400' : ''}>{picked ? '★' : '☆'}</span>{picked ? '선정됨' : '선정하기'}
+            <span className={picked ? 'text-amber-400' : ''}>{picked ? '★' : '☆'}</span>{picked ? '선정됨' : '선정하기'}{pickAs && <span className="font-normal opacity-80">· {pickAs}</span>}
           </button>
         </div>
         <div className="mt-0.5 text-muted">{c.affiliation}{c.position && ` · ${c.position}`}</div>
@@ -84,23 +84,29 @@ function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: 
 export default function PoolViewer({ token, cards, categories, initialPicks }: {
   token: string
   cards: PoolCard[]
-  initialPicks: string[]
+  initialPicks: { id: string; category: string }[]
   categories: { code: string; label: string }[]
 }) {
   const [cat, setCat] = useState<string>('all')
   const [q, setQ] = useState('')
-  const [selected, setSelected] = useState<string | null>(cards[0]?.id ?? null)
+  // 선택 = '후보id|분야' (같은 사람이 여러 분야에 있으면 어느 분야에서 보고 있는지까지 기억)
+  const [selected, setSelected] = useState<string | null>(cards[0] ? `${cards[0].id}|*` : null)
   const viewerRef = useRef<HTMLDivElement>(null)
-  // 별표 = 기관 선정 목록 (링크마다 DB에 저장, 열람자 모두 공유)
-  const [picks, setPicks] = useState<Set<string>>(() => new Set(initialPicks))
+  // 별표 = 기관 선정 목록 (링크마다 DB에 저장, 열람자 모두 공유). 누른 분야 탭의 분야로 담긴다
+  const pk = (id: string, category: string) => `${id}|${category}`
+  const [picks, setPicks] = useState<Set<string>>(() => new Set(initialPicks.map(p => pk(p.id, p.category))))
   const [pickError, setPickError] = useState<string | null>(null)
-  async function togglePick(id: string) {
-    const on = !picks.has(id)
-    const apply = (v: boolean) => setPicks(s => { const n = new Set(s); if (v) n.add(id); else n.delete(id); return n })
+  const pickedIn = (c: PoolCard) => c.categories.filter(x => picks.has(pk(c.id, x)))
+  /** pc = 분야 코드. '*'(전체 탭)이면 아무 분야에나 담겨 있는지로 보고, 담을 때는 주 분야로 담는다 */
+  const isPicked = (c: PoolCard, pc: string) => (pc === '*' ? pickedIn(c).length > 0 : picks.has(pk(c.id, pc)))
+  async function togglePick(c: PoolCard, pc: string) {
+    const on = !isPicked(c, pc)
+    const keys = pc !== '*' ? [pk(c.id, pc)] : on ? [pk(c.id, c.category ?? c.categories[0] ?? '')] : pickedIn(c).map(x => pk(c.id, x))
+    const apply = (v: boolean) => setPicks(s => { const n = new Set(s); keys.forEach(k => (v ? n.add(k) : n.delete(k))); return n })
     apply(on)
     setPickError(null)
     try {
-      await api(`/api/pool/${token}/pick`, { body: { entry_id: id, picked: on } })
+      await Promise.all(keys.map(k => api(`/api/pool/${token}/pick`, { body: { entry_id: c.id, category: k.split('|')[1], picked: on } })))
     } catch {
       apply(!on)
       setPickError('선정 목록을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
@@ -108,12 +114,21 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
   }
   const labelOf = (code: string | null) => categories.find(c => c.code === code)?.label ?? '기타'
 
+  // 목록 항목 = { 후보, 분야 }. 선정 목록 탭은 담긴 분야별로 (같은 사람이 두 분야에 담기면 두 번) 보여준다
   const list = useMemo(() => {
     const k = q.trim().toLowerCase()
-    return cards.filter(c => (cat === 'all' || (cat === 'picked' ? picks.has(c.id) : c.categories.includes(cat)))
-      && (!k || [c.name, c.affiliation, c.position, ...c.expertise].some(v => v?.toLowerCase().includes(k))))
-  }, [cards, cat, q, picks])
-  const current = cards.find(c => c.id === selected) ?? null
+    const hit = (c: PoolCard) => !k || [c.name, c.affiliation, c.position, ...c.expertise].some(v => v?.toLowerCase().includes(k))
+    if (cat === 'picked') {
+      return categories.flatMap(g => cards.filter(c => picks.has(pk(c.id, g.code)) && hit(c)).map(c => ({ c, pc: g.code })))
+    }
+    return cards.filter(c => (cat === 'all' || c.categories.includes(cat)) && hit(c)).map(c => ({ c, pc: cat === 'all' ? '*' : cat }))
+  }, [cards, cat, q, picks, categories])
+  // 탭을 바꿔도 같은 사람을 보고 있으면 그 탭의 항목으로 이어 본다
+  const selId = selected?.split('|')[0]
+  const inList = list.find(e => pk(e.c.id, e.pc) === selected) ?? list.find(e => e.c.id === selId)
+  const entry = inList ?? (() => { const c = cards.find(x => x.id === selId); return c ? { c, pc: '*' } : null })()
+  const current = entry?.c ?? null
+  const selKey = inList ? pk(inList.c.id, inList.pc) : null
 
   const files: ViewerFile[] = current
     ? [
@@ -126,21 +141,21 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
     return (await api<{ url: string }>(`/api/pool/${token}/file`, { body: { entry_id, doc: Number(doc) } })).url
   }
 
-  function pick(id: string) {
-    setSelected(id)
+  function pick(key: string) {
+    setSelected(key)
     // 좁은 화면에서는 목록 아래 뷰어로 이동
     if (window.innerWidth < 1024) setTimeout(() => viewerRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
   // 이전·다음 후보 (현재 탭·검색 결과 순서). 키보드 ←/→ 도 지원
-  const idx = list.findIndex(c => c.id === selected)
+  const idx = inList ? list.indexOf(inList) : -1
   const prev = idx > 0 ? list[idx - 1] : null
   const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.altKey || e.ctrlKey || e.metaKey) return
-      if (e.key === 'ArrowLeft' && prev) setSelected(prev.id)
-      if (e.key === 'ArrowRight' && next) setSelected(next.id)
+      if (e.key === 'ArrowLeft' && prev) setSelected(pk(prev.c.id, prev.pc))
+      if (e.key === 'ArrowRight' && next) setSelected(pk(next.c.id, next.pc))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -166,7 +181,7 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
         <button type="button" onClick={() => setCat('picked')}
           className={cn('shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
             cat === 'picked' ? 'border-amber-400 bg-amber-400 text-white' : 'border-amber-300 bg-card text-amber-700 hover:bg-amber-50')}>
-          ★ 선정 목록<span className="tabular ml-1.5 opacity-80">{picks.size}</span>
+          ★ 선정 목록<span className="tabular ml-1.5 opacity-80">{[...picks].filter(k => categories.some(g => k.endsWith(`|${g.code}`)) && cards.some(c => k.startsWith(`${c.id}|`))).length}</span>
         </button>
       </div>
       {pickError && <p className="mt-2 text-sm font-semibold text-danger">{pickError}</p>}
@@ -186,19 +201,21 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
                   {cat === 'picked' ? '아직 선정한 심사위원이 없습니다. 후보 옆 ☆를 눌러 담아 주세요.' : '해당하는 후보가 없습니다.'}
                 </li>
               )}
-              {list.map((c, i) => (
-                <li key={c.id}>
+              {list.map(({ c, pc }, i) => {
+                const key = pk(c.id, pc)
+                return (
+                <li key={key}>
                   {/* 선정 목록은 분야별로 묶어 보여준다 */}
-                  {cat === 'picked' && c.category !== list[i - 1]?.category && (
+                  {cat === 'picked' && pc !== list[i - 1]?.pc && (
                     <div className="bg-bg px-4 py-1.5 text-xs font-bold text-primary">
-                      {labelOf(c.category)} <span className="tabular font-normal text-muted">{list.filter(x => x.category === c.category).length}명</span>
+                      {labelOf(pc)} <span className="tabular font-normal text-muted">{list.filter(x => x.pc === pc).length}명</span>
                     </div>
                   )}
-                  <div className={cn('flex items-start transition-colors', c.id === selected ? 'bg-primary/10' : 'hover:bg-bg')}>
-                  <button type="button" onClick={() => pick(c.id)}
+                  <div className={cn('flex items-start transition-colors', key === selKey ? 'bg-primary/10' : 'hover:bg-bg')}>
+                  <button type="button" onClick={() => pick(key)}
                     className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 text-left">
                     <span className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                      c.id === selected ? 'bg-primary text-primary-fg' : 'bg-[var(--ev-soft)] text-[var(--ev-deep)]')}>
+                      key === selKey ? 'bg-primary text-primary-fg' : 'bg-[var(--ev-soft)] text-[var(--ev-deep)]')}>
                       {c.name.slice(0, 1)}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -208,10 +225,11 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
                     </span>
                     {c.docs.length > 0 && <span className="shrink-0 rounded-full bg-bg px-2 py-0.5 text-[11px] text-muted">증빙 {c.docs.length}</span>}
                   </button>
-                  <Star on={picks.has(c.id)} onClick={() => togglePick(c.id)} className="mx-1 mt-2.5 h-9 w-9" />
+                  <Star on={isPicked(c, pc)} onClick={() => togglePick(c, pc)} className="mx-1 mt-2.5 h-9 w-9" />
                   </div>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           </div>
         </aside>
@@ -221,17 +239,18 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
           {current ? (
             <>
               <div className="mb-3 flex items-center justify-between gap-2">
-                <button type="button" onClick={() => prev && setSelected(prev.id)} disabled={!prev}
+                <button type="button" onClick={() => prev && setSelected(pk(prev.c.id, prev.pc))} disabled={!prev}
                   className="inline-flex h-10 min-w-0 items-center gap-1.5 rounded-md border border-line bg-card px-3 text-sm font-semibold hover:bg-bg disabled:opacity-40">
-                  <span aria-hidden>←</span><span className="truncate">{prev ? `이전 · ${prev.name}` : '이전'}</span>
+                  <span aria-hidden>←</span><span className="truncate">{prev ? `이전 · ${prev.c.name}` : '이전'}</span>
                 </button>
                 <span className="tabular shrink-0 text-sm text-muted">{idx >= 0 ? `${idx + 1} / ${list.length}` : ''}</span>
-                <button type="button" onClick={() => next && setSelected(next.id)} disabled={!next}
+                <button type="button" onClick={() => next && setSelected(pk(next.c.id, next.pc))} disabled={!next}
                   className="inline-flex h-10 min-w-0 items-center gap-1.5 rounded-md border border-line bg-card px-3 text-sm font-semibold hover:bg-bg disabled:opacity-40">
-                  <span className="truncate">{next ? `다음 · ${next.name}` : '다음'}</span><span aria-hidden>→</span>
+                  <span className="truncate">{next ? `다음 · ${next.c.name}` : '다음'}</span><span aria-hidden>→</span>
                 </button>
               </div>
-              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={current.categories.map(labelOf)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} /></div>
+              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={current.categories.map(labelOf)} picked={isPicked(current, entry!.pc)} onPick={() => togglePick(current, entry!.pc)}
+              pickAs={entry!.pc !== '*' && current.categories.length > 1 ? labelOf(entry!.pc) : null} /></div>
               <PdfViewer key={current.id} files={files} watermarkName="" resolveUrl={resolveUrl}
                 emptyText="등록된 이력서가 없습니다." className="h-[78vh] lg:h-[calc(100vh-9rem)]" />
             </>
@@ -243,7 +262,8 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
         {/* 소개 (넓은 화면) */}
         {current && (
           <aside className="hidden 2xl:block 2xl:sticky 2xl:top-4 2xl:h-[calc(100vh-2rem)] 2xl:overflow-y-auto">
-            <ProfilePanel c={current} category={current.categories.map(labelOf)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} />
+            <ProfilePanel c={current} category={current.categories.map(labelOf)} picked={isPicked(current, entry!.pc)} onPick={() => togglePick(current, entry!.pc)}
+              pickAs={entry!.pc !== '*' && current.categories.length > 1 ? labelOf(entry!.pc) : null} />
           </aside>
         )}
       </div>
