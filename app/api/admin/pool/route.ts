@@ -6,7 +6,7 @@ import { POOL_CATEGORIES } from '@/lib/pool'
 import type { JudgePoolEntry } from '@/lib/types'
 
 // POST /api/admin/pool — 심사위원 풀 자료 일괄 등록 (A-16)
-//  · upsert : 이름+소속으로 찾아 분야·추천경로 갱신, 없으면 새로 등록 → id. program_id 를 주면 그 대회 후보로 담는다
+//  · upsert : 이름+소속으로 찾아 추천경로 갱신(다른 분야 폴더에서 또 나오면 추가 분야로 담음), 없으면 새로 등록 → id. program_id 를 주면 그 대회 후보로 담는다
 //  · ticket : 이력서·증빙 PDF 서명 업로드 URL
 //  · attach : 업로드한 파일을 이력서 또는 증빙으로 연결 (같은 이름의 증빙은 교체)
 // 파일은 업로드 전에 개인정보 가림을 마친 PDF만 받는다 (기관에 그대로 보여지므로).
@@ -25,10 +25,16 @@ export const POST = handle(async (req: Request) => {
   const b = parsed.data
 
   if (b.action === 'upsert') {
-    const { data: found } = await supabase.from('judge_pool').select('id').eq('name', b.name).eq('affiliation', b.affiliation).limit(1)
-    let id = found?.[0]?.id as string | undefined
-    if (id) {
-      const { error } = await supabase.from('judge_pool').update({ category: b.category, source: b.source }).eq('id', id)
+    const { data: found, error: findError } = await supabase.from('judge_pool').select('id, category, extra_categories').eq('name', b.name).eq('affiliation', b.affiliation).limit(1)
+    if (findError) throw new ApiError(500, '심사위원 풀 DB 업데이트(추가 분야 컬럼)가 필요합니다.')
+    const prev = found?.[0] as Pick<JudgePoolEntry, 'id' | 'category' | 'extra_categories'> | undefined
+    let id = prev?.id
+    if (prev) {
+      const patch: Partial<JudgePoolEntry> = { source: b.source ?? undefined }
+      if (!prev.category) patch.category = b.category
+      else if (b.category && b.category !== prev.category && !(prev.extra_categories ?? []).includes(b.category))
+        patch.extra_categories = [...(prev.extra_categories ?? []), b.category]
+      const { error } = await supabase.from('judge_pool').update(patch).eq('id', id!)
       if (error) throw error
     } else {
       const { data, error } = await supabase.from('judge_pool')

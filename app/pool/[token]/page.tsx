@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { loadShare, shareEntries, sharePicks } from '@/lib/server/pool-share'
 import { EVENTS } from '@/lib/events'
-import { POOL_CATEGORIES } from '@/lib/pool'
+import { POOL_CATEGORIES, allCategories } from '@/lib/pool'
 import PoolViewer, { type PoolCard } from './PoolViewer'
 
 export const dynamic = 'force-dynamic'
@@ -41,7 +41,7 @@ export default async function PoolSharePage({ params }: { params: { token: strin
 
   const [entries, picks] = await Promise.all([shareEntries(share), sharePicks(share.id)])
   const cards: PoolCard[] = entries.map(e => ({
-    id: e.id, name: e.name, affiliation: e.affiliation, position: e.position, category: e.category,
+    id: e.id, name: e.name, affiliation: e.affiliation, position: e.position, category: e.category, categories: allCategories(e),
     expertise: e.expertise ?? [], hasResume: !!e.resume_path, docs: (e.docs ?? []).map(d => d.label),
     source: e.source, profile: e.profile ?? null,
   }))

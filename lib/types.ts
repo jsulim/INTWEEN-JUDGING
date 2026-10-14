@@ -344,6 +344,7 @@ export interface JudgePoolEntry {
   history: { program_id: string; title: string; year: number }[]
   note: string | null
   category: string | null
+  extra_categories: string[] // 추가 분야 (같은 사람이 여러 분야 탭에 보임)
   position: string | null
   source: string | null      // 추천 경로 (내부용)
   resume_path: string | null

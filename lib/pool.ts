@@ -5,7 +5,12 @@ export const POOL_CATEGORIES = [
   { code: '03', label: '기술지주 · 엔젤 · 기보' },
   { code: '04', label: '대학 · 기술전문가' },
   { code: '05', label: '경영 · 마케팅 컨설팅' },
+  { code: '06', label: '관광' },
 ] as const
+
+/** 주 분야 + 추가 분야 */
+export const allCategories = (e: { category: string | null; extra_categories?: string[] | null }) =>
+  [e.category, ...(e.extra_categories ?? [])].filter((c, i, a): c is string => !!c && a.indexOf(c) === i)
 
 export const categoryLabel = (code: string | null) => POOL_CATEGORIES.find(c => c.code === code)?.label ?? '기타'
 

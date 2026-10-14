@@ -47,7 +47,8 @@ export default function PoolImport({ programs }: { programs: { id: string; title
       try {
         set('등록 중…')
         const p = parsePoolPath(r.path)!
-        const key = `${r.name}|${r.affiliation}`
+        // 같은 사람이 다른 분야 폴더에도 있으면 그 분야를 추가 분야로 담는다
+        const key = `${r.name}|${r.affiliation}|${r.category}`
         let id = ids.get(key)
         if (!id) {
           id = (await api<{ id: string }>('/api/admin/pool', { body: { action: 'upsert', name: r.name, affiliation: r.affiliation, source: p.source, category: r.category, program_id: programId || null } })).id
@@ -76,9 +77,9 @@ export default function PoolImport({ programs }: { programs: { id: string; title
     <Card title="자료 일괄 등록 (기관 공유용)">
       <div className="grid gap-3 text-sm">
         <p className="text-muted">
-          분야 폴더(<b>01_VC_펀드운용사</b> ~ <b>05_경영·마케팅컨설팅</b>)가 들어 있는 상위 폴더를 선택하세요.
+          분야 폴더(<b>01_VC_펀드운용사</b> ~ <b>06_관광</b>)가 들어 있는 상위 폴더를 선택하세요.
           파일명 <code>이름_소속_추천경로.pdf</code>는 이력서로, <code>증빙서류</code> 폴더의 <code>이름_소속_추천경로_문서명.pdf</code>는 증빙으로 등록됩니다.
-          같은 사람(이름+소속)은 갱신됩니다.
+          같은 사람(이름+소속)은 갱신되고, 다른 분야 폴더에도 있으면 그 분야에도 함께 보입니다.
         </p>
         <Alert tone="highlight">주민등록번호·연락처·주소 가림, 신분증·통장 사본 제외를 마친 PDF만 올려 주세요. 기관 화면에 그대로 보입니다.</Alert>
         <label className="flex flex-wrap items-center gap-2">

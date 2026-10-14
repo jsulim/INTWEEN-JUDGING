@@ -10,7 +10,8 @@ export interface PoolCard {
   name: string
   affiliation: string | null
   position: string | null
-  category: string | null
+  category: string | null // 주 분야
+  categories: string[] // 주 분야 + 추가 분야
   expertise: string[]
   hasResume: boolean
   docs: string[] // 증빙 이름
@@ -30,7 +31,7 @@ function Star({ on, onClick, className }: { on: boolean; onClick: () => void; cl
 
 const sourceLabel = (s: string | null) => (s ? `${s.split('+').map(x => x.trim()).filter(Boolean).join(' · ')} 추천` : null)
 
-function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: string; picked: boolean; onPick: () => void }) {
+function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: string[]; picked: boolean; onPick: () => void }) {
   const p = c.profile ?? {}
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <section className="border-t border-line pt-4">
@@ -41,7 +42,7 @@ function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: 
   const list = (xs?: string[]) => !!xs?.length && (
     <ul className="grid gap-1.5 text-sm leading-relaxed">{xs.map(x => <li key={x} className="flex gap-2"><span className="text-muted">·</span><span>{x}</span></li>)}</ul>
   )
-  const meta = [category, sourceLabel(c.source), p.region].filter(Boolean) as string[]
+  const meta = [...category, sourceLabel(c.source), p.region].filter(Boolean) as string[]
   return (
     <div className="grid gap-4 rounded-lg border border-line bg-card p-5">
       <div>
@@ -57,7 +58,7 @@ function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: 
         <div className="mt-3 flex flex-wrap gap-1.5">
           {meta.map((m, i) => (
             <span key={m} className={cn('rounded-full px-2.5 py-1 text-xs font-semibold',
-              i === 0 ? 'bg-primary text-primary-fg' : 'bg-bg text-muted')}>{m}</span>
+              i < category.length ? 'bg-primary text-primary-fg' : 'bg-bg text-muted')}>{m}</span>
           ))}
         </div>
         {p.summary && <p className="mt-4 text-[15px] leading-relaxed">{p.summary}</p>}
@@ -109,7 +110,7 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
 
   const list = useMemo(() => {
     const k = q.trim().toLowerCase()
-    return cards.filter(c => (cat === 'all' || (cat === 'picked' ? picks.has(c.id) : c.category === cat))
+    return cards.filter(c => (cat === 'all' || (cat === 'picked' ? picks.has(c.id) : c.categories.includes(cat)))
       && (!k || [c.name, c.affiliation, c.position, ...c.expertise].some(v => v?.toLowerCase().includes(k))))
   }, [cards, cat, q, picks])
   const current = cards.find(c => c.id === selected) ?? null
@@ -145,7 +146,7 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
     return () => window.removeEventListener('keydown', onKey)
   }, [prev, next])
 
-  const count = (code: string) => cards.filter(c => c.category === code).length
+  const count = (code: string) => cards.filter(c => c.categories.includes(code)).length
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
@@ -203,7 +204,7 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
                     <span className="min-w-0 flex-1">
                       <span className="block font-bold">{c.name}{c.position && <span className="ml-1 text-sm font-normal text-muted">{c.position}</span>}</span>
                       <span className="block truncate text-sm text-muted">{c.affiliation}</span>
-                      {cat === 'all' && <span className="mt-1 inline-block rounded bg-bg px-1.5 py-0.5 text-[11px] text-muted">{labelOf(c.category)}</span>}
+                      {cat === 'all' && <span className="mt-1 inline-block rounded bg-bg px-1.5 py-0.5 text-[11px] text-muted">{c.categories.map(labelOf).join(' · ')}</span>}
                     </span>
                     {c.docs.length > 0 && <span className="shrink-0 rounded-full bg-bg px-2 py-0.5 text-[11px] text-muted">증빙 {c.docs.length}</span>}
                   </button>
@@ -230,7 +231,7 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
                   <span className="truncate">{next ? `다음 · ${next.name}` : '다음'}</span><span aria-hidden>→</span>
                 </button>
               </div>
-              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={labelOf(current.category)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} /></div>
+              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={current.categories.map(labelOf)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} /></div>
               <PdfViewer key={current.id} files={files} watermarkName="" resolveUrl={resolveUrl}
                 emptyText="등록된 이력서가 없습니다." className="h-[78vh] lg:h-[calc(100vh-9rem)]" />
             </>
@@ -242,7 +243,7 @@ export default function PoolViewer({ token, cards, categories, initialPicks }: {
         {/* 소개 (넓은 화면) */}
         {current && (
           <aside className="hidden 2xl:block 2xl:sticky 2xl:top-4 2xl:h-[calc(100vh-2rem)] 2xl:overflow-y-auto">
-            <ProfilePanel c={current} category={labelOf(current.category)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} />
+            <ProfilePanel c={current} category={current.categories.map(labelOf)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} />
           </aside>
         )}
       </div>
