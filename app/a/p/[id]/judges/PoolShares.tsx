@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/format'
 import { EVENTS } from '@/lib/events'
+import { categoryLabel } from '@/lib/pool'
 import { Badge, Button, Card, Input } from '@/components/ui'
 import { Feedback, useRun } from '@/components/admin/setup/client'
 import type { PoolShare } from '@/lib/types'
 
 // 기관 검토용 심사위원 풀 공유 링크 (회의: 기관이 이력을 보고 고르는 페이지, 링크 하나로 전달, 외부 비공개)
-export default function PoolShares({ programId, programTitle, shares, poolCount }: {
+export default function PoolShares({ programId, programTitle, shares, poolCount, picks }: {
   programId: string; programTitle: string; shares: PoolShare[]; poolCount: number
+  picks: Record<string, { name: string; affiliation: string | null; category: string | null }[]>
 }) {
   const { busy, error, notice, run, setNotice } = useRun()
   const [origin, setOrigin] = useState('')
@@ -59,6 +61,16 @@ export default function PoolShares({ programId, programTitle, shares, poolCount 
                     <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(linkOf(s)); setNotice('링크를 복사했습니다.') }}>복사</Button>
                     <a href={linkOf(s)} target="_blank" rel="noreferrer" className="text-sm font-semibold text-primary hover:underline">미리 보기</a>
                     <Button size="sm" variant="ghost" className="text-danger" onClick={() => revoke(s)} disabled={busy}>끄기</Button>
+                  </div>
+                )}
+                {!!picks[s.id]?.length && (
+                  <div className="mt-2 rounded-md bg-bg p-2.5">
+                    <div className="text-xs font-bold text-primary">★ 기관 선정 {picks[s.id].length}명</div>
+                    <div className="mt-1 grid gap-0.5 text-xs">
+                      {Object.entries(picks[s.id].reduce<Record<string, string[]>>((g, p) => {
+                        (g[categoryLabel(p.category)] ??= []).push(p.affiliation ? `${p.name}(${p.affiliation})` : p.name); return g
+                      }, {})).map(([cat, names]) => <div key={cat}><span className="text-muted">{cat}</span> · {names.join(', ')}</div>)}
+                    </div>
                   </div>
                 )}
               </li>

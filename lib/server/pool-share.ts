@@ -27,3 +27,9 @@ export async function shareEntries(s: PoolShare) {
   const { data } = await q
   return ((data ?? []) as Pick<JudgePoolEntry, 'id' | 'name' | 'affiliation' | 'position' | 'category' | 'expertise' | 'career' | 'resume_path' | 'docs' | 'source' | 'profile'>[])
 }
+
+/** 이 링크에서 별표로 고른 심사위원 id (테이블이 아직 없으면 빈 목록) */
+export async function sharePicks(shareId: string): Promise<string[]> {
+  const { data } = await supabaseAdmin().from('pool_share_picks').select('pool_id').eq('share_id', shareId).order('created_at')
+  return (data ?? []).map(x => x.pool_id as string)
+}

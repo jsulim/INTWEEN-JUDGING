@@ -18,9 +18,19 @@ export interface PoolCard {
   profile: PoolProfile | null
 }
 
+function Star({ on, onClick, className }: { on: boolean; onClick: () => void; className?: string }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on} title={on ? '선정 해제' : '선정 목록에 담기'}
+      className={cn('flex shrink-0 items-center justify-center rounded-md text-xl leading-none transition-colors',
+        on ? 'text-amber-400 hover:text-amber-500' : 'text-line hover:text-amber-300', className)}>
+      {on ? '★' : '☆'}
+    </button>
+  )
+}
+
 const sourceLabel = (s: string | null) => (s ? `${s.split('+').map(x => x.trim()).filter(Boolean).join(' · ')} 추천` : null)
 
-function ProfilePanel({ c, category }: { c: PoolCard; category: string }) {
+function ProfilePanel({ c, category, picked, onPick }: { c: PoolCard; category: string; picked: boolean; onPick: () => void }) {
   const p = c.profile ?? {}
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <section className="border-t border-line pt-4">
@@ -35,7 +45,14 @@ function ProfilePanel({ c, category }: { c: PoolCard; category: string }) {
   return (
     <div className="grid gap-4 rounded-lg border border-line bg-card p-5">
       <div>
-        <h2 className="text-2xl font-black leading-tight">{c.name}</h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-2xl font-black leading-tight">{c.name}</h2>
+          <button type="button" onClick={onPick}
+            className={cn('inline-flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-sm font-semibold transition-colors',
+              picked ? 'border-amber-400 bg-amber-50 text-amber-700' : 'border-line text-muted hover:border-amber-300 hover:text-fg')}>
+            <span className={picked ? 'text-amber-400' : ''}>{picked ? '★' : '☆'}</span>{picked ? '선정됨' : '선정하기'}
+          </button>
+        </div>
         <div className="mt-0.5 text-muted">{c.affiliation}{c.position && ` · ${c.position}`}</div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {meta.map((m, i) => (
@@ -63,22 +80,38 @@ function ProfilePanel({ c, category }: { c: PoolCard; category: string }) {
 }
 
 // 분야 탭 → 후보 목록 → 선택한 후보의 이력서·증빙 뷰어 (다운로드 버튼 없음)
-export default function PoolViewer({ token, cards, categories }: {
+export default function PoolViewer({ token, cards, categories, initialPicks }: {
   token: string
   cards: PoolCard[]
+  initialPicks: string[]
   categories: { code: string; label: string }[]
 }) {
   const [cat, setCat] = useState<string>('all')
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<string | null>(cards[0]?.id ?? null)
   const viewerRef = useRef<HTMLDivElement>(null)
+  // 별표 = 기관 선정 목록 (링크마다 DB에 저장, 열람자 모두 공유)
+  const [picks, setPicks] = useState<Set<string>>(() => new Set(initialPicks))
+  const [pickError, setPickError] = useState<string | null>(null)
+  async function togglePick(id: string) {
+    const on = !picks.has(id)
+    const apply = (v: boolean) => setPicks(s => { const n = new Set(s); if (v) n.add(id); else n.delete(id); return n })
+    apply(on)
+    setPickError(null)
+    try {
+      await api(`/api/pool/${token}/pick`, { body: { entry_id: id, picked: on } })
+    } catch {
+      apply(!on)
+      setPickError('선정 목록을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
+  }
   const labelOf = (code: string | null) => categories.find(c => c.code === code)?.label ?? '기타'
 
   const list = useMemo(() => {
     const k = q.trim().toLowerCase()
-    return cards.filter(c => (cat === 'all' || c.category === cat)
+    return cards.filter(c => (cat === 'all' || (cat === 'picked' ? picks.has(c.id) : c.category === cat))
       && (!k || [c.name, c.affiliation, c.position, ...c.expertise].some(v => v?.toLowerCase().includes(k))))
-  }, [cards, cat, q])
+  }, [cards, cat, q, picks])
   const current = cards.find(c => c.id === selected) ?? null
 
   const files: ViewerFile[] = current
@@ -129,7 +162,13 @@ export default function PoolViewer({ token, cards, categories }: {
             </button>
           )
         })}
+        <button type="button" onClick={() => setCat('picked')}
+          className={cn('shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+            cat === 'picked' ? 'border-amber-400 bg-amber-400 text-white' : 'border-amber-300 bg-card text-amber-700 hover:bg-amber-50')}>
+          ★ 선정 목록<span className="tabular ml-1.5 opacity-80">{picks.size}</span>
+        </button>
       </div>
+      {pickError && <p className="mt-2 text-sm font-semibold text-danger">{pickError}</p>}
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         {/* 목록 */}
@@ -141,12 +180,22 @@ export default function PoolViewer({ token, cards, categories }: {
               <div className="mt-2 text-xs text-muted">{list.length}명</div>
             </div>
             <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto">
-              {list.length === 0 && <li className="p-6 text-center text-sm text-muted">해당하는 후보가 없습니다.</li>}
-              {list.map(c => (
+              {list.length === 0 && (
+                <li className="p-6 text-center text-sm text-muted">
+                  {cat === 'picked' ? '아직 선정한 심사위원이 없습니다. 후보 옆 ☆를 눌러 담아 주세요.' : '해당하는 후보가 없습니다.'}
+                </li>
+              )}
+              {list.map((c, i) => (
                 <li key={c.id}>
+                  {/* 선정 목록은 분야별로 묶어 보여준다 */}
+                  {cat === 'picked' && c.category !== list[i - 1]?.category && (
+                    <div className="bg-bg px-4 py-1.5 text-xs font-bold text-primary">
+                      {labelOf(c.category)} <span className="tabular font-normal text-muted">{list.filter(x => x.category === c.category).length}명</span>
+                    </div>
+                  )}
+                  <div className={cn('flex items-start transition-colors', c.id === selected ? 'bg-primary/10' : 'hover:bg-bg')}>
                   <button type="button" onClick={() => pick(c.id)}
-                    className={cn('flex w-full items-start gap-3 px-4 py-3 text-left transition-colors',
-                      c.id === selected ? 'bg-primary/10' : 'hover:bg-bg')}>
+                    className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 text-left">
                     <span className={cn('mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold',
                       c.id === selected ? 'bg-primary text-primary-fg' : 'bg-[var(--ev-soft)] text-[var(--ev-deep)]')}>
                       {c.name.slice(0, 1)}
@@ -158,6 +207,8 @@ export default function PoolViewer({ token, cards, categories }: {
                     </span>
                     {c.docs.length > 0 && <span className="shrink-0 rounded-full bg-bg px-2 py-0.5 text-[11px] text-muted">증빙 {c.docs.length}</span>}
                   </button>
+                  <Star on={picks.has(c.id)} onClick={() => togglePick(c.id)} className="mx-1 mt-2.5 h-9 w-9" />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -179,7 +230,7 @@ export default function PoolViewer({ token, cards, categories }: {
                   <span className="truncate">{next ? `다음 · ${next.name}` : '다음'}</span><span aria-hidden>→</span>
                 </button>
               </div>
-              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={labelOf(current.category)} /></div>
+              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={labelOf(current.category)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} /></div>
               <PdfViewer key={current.id} files={files} watermarkName="" resolveUrl={resolveUrl}
                 emptyText="등록된 이력서가 없습니다." className="h-[78vh] lg:h-[calc(100vh-9rem)]" />
             </>
@@ -191,7 +242,7 @@ export default function PoolViewer({ token, cards, categories }: {
         {/* 소개 (넓은 화면) */}
         {current && (
           <aside className="hidden 2xl:block 2xl:sticky 2xl:top-4 2xl:h-[calc(100vh-2rem)] 2xl:overflow-y-auto">
-            <ProfilePanel c={current} category={labelOf(current.category)} />
+            <ProfilePanel c={current} category={labelOf(current.category)} picked={picks.has(current.id)} onPick={() => togglePick(current.id)} />
           </aside>
         )}
       </div>

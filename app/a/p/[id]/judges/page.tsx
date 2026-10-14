@@ -21,6 +21,17 @@ export default async function JudgesPage({ params }: { params: { id: string } })
   ])
   const { data: members } = await supabase.from('pool_members').select('pool_id').eq('program_id', params.id)
   const memberIds = new Set((members ?? []).map(m => m.pool_id as string))
+  // 공유 링크별 기관 선정(별표) 목록
+  const shareIds = ((shares ?? []) as PoolShare[]).map(s => s.id)
+  const { data: pickRows } = shareIds.length
+    ? await supabase.from('pool_share_picks').select('share_id, pool_id').in('share_id', shareIds).order('created_at')
+    : { data: [] }
+  const poolById = new Map(((pool ?? []) as JudgePoolEntry[]).map(p => [p.id, p]))
+  const picks: Record<string, { name: string; affiliation: string | null; category: string | null }[]> = {}
+  for (const r of (pickRows ?? []) as { share_id: string; pool_id: string }[]) {
+    const p = poolById.get(r.pool_id)
+    if (p) (picks[r.share_id] ??= []).push({ name: p.name, affiliation: p.affiliation, category: p.category })
+  }
   const judges = (judgeRows ?? []) as Judge[]
   const judgeIds = judges.map(j => j.id)
   const [profs, { data: consents }, { data: conflicts }] = await Promise.all([
@@ -63,7 +74,7 @@ export default async function JudgesPage({ params }: { params: { id: string } })
       <h1 className="mb-1 text-2xl font-bold">심사위원 관리</h1>
       <p className="mb-6 text-muted">심사위원은 활성 동의서(필수)를 모두 서명해야 자료 열람·평가가 가능합니다. 양식 버전이 바뀌면 재서명이 필요합니다.</p>
       <div className="mb-5 grid gap-5">
-        <PoolShares programId={params.id} programTitle={program?.title ?? ''} shares={(shares ?? []) as PoolShare[]}
+        <PoolShares programId={params.id} programTitle={program?.title ?? ''} shares={(shares ?? []) as PoolShare[]} picks={picks}
           poolCount={((pool ?? []) as JudgePoolEntry[]).filter(p => memberIds.has(p.id) && p.shareable !== false && p.resume_path).length} />
         <JudgeRequests programId={params.id} open={!!program?.judge_signup_open} requests={(requests ?? []) as JudgeRequest[]} />
       </div>

@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { Metadata } from 'next'
 import { supabaseAdmin } from '@/lib/supabase/server'
-import { loadShare, shareEntries } from '@/lib/server/pool-share'
+import { loadShare, shareEntries, sharePicks } from '@/lib/server/pool-share'
 import { EVENTS } from '@/lib/events'
 import { POOL_CATEGORIES } from '@/lib/pool'
 import PoolViewer, { type PoolCard } from './PoolViewer'
@@ -39,7 +39,7 @@ export default async function PoolSharePage({ params }: { params: { token: strin
     '--ev-deep': theme.deep, '--ev-soft': theme.soft,
   } as CSSProperties
 
-  const entries = await shareEntries(share)
+  const [entries, picks] = await Promise.all([shareEntries(share), sharePicks(share.id)])
   const cards: PoolCard[] = entries.map(e => ({
     id: e.id, name: e.name, affiliation: e.affiliation, position: e.position, category: e.category,
     expertise: e.expertise ?? [], hasResume: !!e.resume_path, docs: (e.docs ?? []).map(d => d.label),
@@ -62,7 +62,7 @@ export default async function PoolSharePage({ params }: { params: { token: strin
           {share.expires_at && <> · 열람 가능 기한 {new Date(share.expires_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</>}
         </p>
       </div>
-      <PoolViewer token={share.token} cards={cards} categories={cats.map(c => ({ code: c.code, label: c.label }))} />
+      <PoolViewer token={share.token} cards={cards} initialPicks={picks} categories={cats.map(c => ({ code: c.code, label: c.label }))} />
     </div>
   )
 }
