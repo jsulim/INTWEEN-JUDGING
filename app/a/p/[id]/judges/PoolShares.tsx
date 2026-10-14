@@ -36,7 +36,7 @@ export default function PoolShares({ programId, programTitle, shares, poolCount 
       <Feedback error={error} notice={notice} />
       <div className="grid gap-4 text-sm">
         <p className="text-muted">
-          심사위원 후보 이력서를 분야별로 볼 수 있는 링크를 만들어 기관에 전달합니다. 링크를 아는 사람만 열람할 수 있고(다운로드 불가·워터마크),
+          심사위원 후보 이력서를 분야별로 볼 수 있는 링크를 만들어 기관에 전달합니다. 링크를 아는 사람만 열람할 수 있고(다운로드 불가),
           언제든 끌 수 있습니다. 이 대회 후보 <b className="text-fg">{poolCount}명</b> ·
           후보 등록은 <Link href="/a/pool" className="font-semibold text-primary hover:underline">심사위원 풀</Link>에서 이 대회를 선택해 합니다.
         </p>

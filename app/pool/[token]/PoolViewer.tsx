@@ -15,12 +15,11 @@ export interface PoolCard {
   docs: string[] // 증빙 이름
 }
 
-// 분야 탭 → 후보 목록 → 선택한 후보의 이력서·증빙 뷰어 (다운로드 없음, 워터마크)
-export default function PoolViewer({ token, cards, categories, watermark }: {
+// 분야 탭 → 후보 목록 → 선택한 후보의 이력서·증빙 뷰어 (다운로드 버튼 없음)
+export default function PoolViewer({ token, cards, categories }: {
   token: string
   cards: PoolCard[]
   categories: { code: string; label: string }[]
-  watermark: string
 }) {
   const [cat, setCat] = useState<string>('all')
   const [q, setQ] = useState('')
@@ -120,7 +119,7 @@ export default function PoolViewer({ token, cards, categories, watermark }: {
                   </div>
                 )}
               </div>
-              <PdfViewer key={current.id} files={files} watermarkName={watermark} resolveUrl={resolveUrl}
+              <PdfViewer key={current.id} files={files} watermarkName="" resolveUrl={resolveUrl}
                 emptyText="등록된 이력서가 없습니다." className="h-[78vh] lg:h-[calc(100vh-9rem)]" />
             </>
           ) : (

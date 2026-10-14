@@ -62,8 +62,7 @@ export default async function PoolSharePage({ params }: { params: { token: strin
           {share.expires_at && <> · 열람 가능 기한 {new Date(share.expires_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</>}
         </p>
       </div>
-      <PoolViewer token={share.token} cards={cards} categories={cats.map(c => ({ code: c.code, label: c.label }))}
-        watermark={`${share.title} · 검토용`} />
+      <PoolViewer token={share.token} cards={cards} categories={cats.map(c => ({ code: c.code, label: c.label }))} />
     </div>
   )
 }

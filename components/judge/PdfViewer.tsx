@@ -54,7 +54,7 @@ function useWatermark(name: string) {
     return () => clearInterval(t)
   }, [])
   return useMemo(() => {
-    if (!now) return ''
+    if (!now || !name) return '' // 이름이 없으면 워터마크 없음
     const ts = now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
     const text = esc(`${name} · ${ts}`)
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="380" height="240"><text x="190" y="120" text-anchor="middle" dominant-baseline="middle" transform="rotate(-28 190 120)" font-family="Pretendard, sans-serif" font-size="15" font-weight="600" fill="rgba(31,42,37,0.13)">${text}</text></svg>`
