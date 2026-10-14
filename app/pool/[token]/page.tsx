@@ -58,7 +58,6 @@ export default async function PoolSharePage({ params }: { params: { token: strin
       <div className="border-b border-line bg-card">
         <p className="mx-auto max-w-[1500px] px-4 py-2.5 text-xs leading-relaxed text-muted sm:px-6">
           심사위원 선정 검토용 자료입니다. 화면 열람만 가능하며 저장·인쇄·외부 공유를 삼가 주세요.
-          주민등록번호는 가림 처리했습니다.
           {share.expires_at && <> · 열람 가능 기한 {new Date(share.expires_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</>}
         </p>
       </div>
