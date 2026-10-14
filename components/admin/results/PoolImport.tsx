@@ -11,8 +11,9 @@ import { Alert, Button, Card, Table } from '@/components/ui'
 // 개인정보 가림을 마친 PDF만 올린다 (기관 공유 화면에 그대로 보인다).
 type Row = { path: string; name: string; affiliation: string; category: string | null; kind: '이력서' | '증빙'; label: string | null; status: string }
 
-export default function PoolImport() {
+export default function PoolImport({ programs }: { programs: { id: string; title: string }[] }) {
   const router = useRouter()
+  const [programId, setProgramId] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<(Row & { file: File })[]>([])
   const [skipped, setSkipped] = useState<string[]>([])
@@ -49,7 +50,7 @@ export default function PoolImport() {
         const key = `${r.name}|${r.affiliation}`
         let id = ids.get(key)
         if (!id) {
-          id = (await api<{ id: string }>('/api/admin/pool', { body: { action: 'upsert', name: r.name, affiliation: r.affiliation, source: p.source, category: r.category } })).id
+          id = (await api<{ id: string }>('/api/admin/pool', { body: { action: 'upsert', name: r.name, affiliation: r.affiliation, source: p.source, category: r.category, program_id: programId || null } })).id
           ids.set(key, id)
         }
         const kind = r.kind === '이력서' ? 'resume' : 'doc'
@@ -80,6 +81,15 @@ export default function PoolImport() {
           같은 사람(이름+소속)은 갱신됩니다.
         </p>
         <Alert tone="highlight">주민등록번호·연락처·주소 가림, 신분증·통장 사본 제외를 마친 PDF만 올려 주세요. 기관 화면에 그대로 보입니다.</Alert>
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold">후보로 담을 대회</span>
+          <select value={programId} onChange={e => setProgramId(e.target.value)} disabled={busy}
+            className="h-9 rounded-md border border-line bg-card px-2 text-sm">
+            <option value="">선택 안 함 (공용 명단에만 등록)</option>
+            {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+          </select>
+          <span className="text-xs text-muted">대회 공유 링크에는 그 대회 후보만 보입니다.</span>
+        </label>
         <div className="flex flex-wrap items-center gap-2">
           <input ref={input} type="file" className="hidden" multiple accept=".pdf"
             {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}

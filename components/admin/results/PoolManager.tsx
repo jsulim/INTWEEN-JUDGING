@@ -9,7 +9,7 @@ import { Alert, Badge, Button, Empty, Field, Input, Select, Table, Textarea, cn 
 import { ConfirmDialog } from './ui'
 
 type Hist = { program_id: string; title: string; year: number; chair?: boolean }
-export type PoolRow = JudgePoolEntry & { computed: Hist[] }
+export type PoolRow = JudgePoolEntry & { computed: Hist[]; members: string[] }
 type Form = { name: string; email: string; phone: string; affiliation: string; expertise: string; career: string; note: string }
 
 const empty: Form = { name: '', email: '', phone: '', affiliation: '', expertise: '', career: '', note: '' }
@@ -21,6 +21,7 @@ export default function PoolManager({ rows, programs }: { rows: PoolRow[]; progr
   const sb = supabaseBrowser()
   const [q, setQ] = useState('')
   const [tag, setTag] = useState<string | null>(null)
+  const [prog, setProg] = useState('')
   const [msg, setMsg] = useState<{ tone: 'accent' | 'danger'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [edit, setEdit] = useState<{ id: string | null; form: Form } | null>(null)
@@ -35,6 +36,7 @@ export default function PoolManager({ rows, programs }: { rows: PoolRow[]; progr
 
   const list = rows.filter(r => {
     if (tag && !r.expertise.includes(tag)) return false
+    if (prog && !r.members.includes(prog)) return false
     const s = q.trim().toLowerCase()
     if (!s) return true
     return [r.name, r.email, r.affiliation, r.career, r.note, ...r.expertise].some(v => (v ?? '').toLowerCase().includes(s))
@@ -98,6 +100,10 @@ export default function PoolManager({ rows, programs }: { rows: PoolRow[]; progr
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
       <div className="flex flex-wrap items-center gap-2">
         <Input className="max-w-xs" value={q} onChange={e => setQ(e.target.value)} placeholder="이름·소속·전문분야 검색" />
+        <Select value={prog} onChange={e => setProg(e.target.value)} className="w-64">
+          <option value="">전체 명단</option>
+          {programs.map(p => <option key={p.id} value={p.id}>{p.title} 후보 ({rows.filter(r => r.members.includes(p.id)).length})</option>)}
+        </Select>
         <div className="ml-auto flex gap-2">
           {stale.length > 0 && <Button variant="outline" onClick={syncHistory} disabled={busy}>참여 이력 갱신 ({stale.length})</Button>}
           <Button onClick={() => openEdit()}>심사위원 등록</Button>

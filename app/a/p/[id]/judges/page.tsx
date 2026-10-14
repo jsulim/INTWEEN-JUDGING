@@ -19,6 +19,8 @@ export default async function JudgesPage({ params }: { params: { id: string } })
     supabase.from('judge_requests').select('*').eq('program_id', params.id).order('created_at', { ascending: false }),
     supabase.from('pool_shares').select('*').eq('program_id', params.id).order('created_at', { ascending: false }),
   ])
+  const { data: members } = await supabase.from('pool_members').select('pool_id').eq('program_id', params.id)
+  const memberIds = new Set((members ?? []).map(m => m.pool_id as string))
   const judges = (judgeRows ?? []) as Judge[]
   const judgeIds = judges.map(j => j.id)
   const [profs, { data: consents }, { data: conflicts }] = await Promise.all([
@@ -62,7 +64,7 @@ export default async function JudgesPage({ params }: { params: { id: string } })
       <p className="mb-6 text-muted">심사위원은 활성 동의서(필수)를 모두 서명해야 자료 열람·평가가 가능합니다. 양식 버전이 바뀌면 재서명이 필요합니다.</p>
       <div className="mb-5 grid gap-5">
         <PoolShares programId={params.id} programTitle={program?.title ?? ''} shares={(shares ?? []) as PoolShare[]}
-          poolCount={((pool ?? []) as JudgePoolEntry[]).filter(p => p.shareable !== false && p.resume_path).length} />
+          poolCount={((pool ?? []) as JudgePoolEntry[]).filter(p => memberIds.has(p.id) && p.shareable !== false && p.resume_path).length} />
         <JudgeRequests programId={params.id} open={!!program?.judge_signup_open} requests={(requests ?? []) as JudgeRequest[]} />
       </div>
       <JudgesManager programId={params.id} judges={rows} templates={(templates ?? []) as ConsentTemplate[]} pool={(pool ?? []) as JudgePoolEntry[]} />

@@ -17,6 +17,13 @@ export async function shareEntries(s: PoolShare) {
   let q = supabaseAdmin().from('judge_pool').select('id, name, affiliation, position, category, expertise, career, resume_path, docs')
     .eq('shareable', true).order('category').order('name')
   if (s.categories?.length) q = q.in('category', s.categories)
+  // 대회 링크면 그 대회 후보만
+  if (s.program_id) {
+    const { data: m } = await supabaseAdmin().from('pool_members').select('pool_id').eq('program_id', s.program_id)
+    const ids = (m ?? []).map(x => x.pool_id as string)
+    if (!ids.length) return []
+    q = q.in('id', ids)
+  }
   const { data } = await q
   return ((data ?? []) as Pick<JudgePoolEntry, 'id' | 'name' | 'affiliation' | 'position' | 'category' | 'expertise' | 'career' | 'resume_path' | 'docs'>[])
 }
