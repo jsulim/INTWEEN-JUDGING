@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import { cn } from '@/components/ui'
 import PdfViewer, { type ViewerFile } from '@/components/judge/PdfViewer'
@@ -50,6 +50,20 @@ export default function PoolViewer({ token, cards, categories }: {
     // 좁은 화면에서는 목록 아래 뷰어로 이동
     if (window.innerWidth < 1024) setTimeout(() => viewerRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
+
+  // 이전·다음 후보 (현재 탭·검색 결과 순서). 키보드 ←/→ 도 지원
+  const idx = list.findIndex(c => c.id === selected)
+  const prev = idx > 0 ? list[idx - 1] : null
+  const next = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.altKey || e.ctrlKey || e.metaKey) return
+      if (e.key === 'ArrowLeft' && prev) setSelected(prev.id)
+      if (e.key === 'ArrowRight' && next) setSelected(next.id)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [prev, next])
 
   const count = (code: string) => cards.filter(c => c.category === code).length
 
@@ -107,6 +121,17 @@ export default function PoolViewer({ token, cards, categories }: {
         <section ref={viewerRef} className="min-w-0 scroll-mt-4">
           {current ? (
             <>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <button type="button" onClick={() => prev && setSelected(prev.id)} disabled={!prev}
+                  className="inline-flex h-10 min-w-0 items-center gap-1.5 rounded-md border border-line bg-card px-3 text-sm font-semibold hover:bg-bg disabled:opacity-40">
+                  <span aria-hidden>←</span><span className="truncate">{prev ? `이전 · ${prev.name}` : '이전'}</span>
+                </button>
+                <span className="tabular shrink-0 text-sm text-muted">{idx >= 0 ? `${idx + 1} / ${list.length}` : ''}</span>
+                <button type="button" onClick={() => next && setSelected(next.id)} disabled={!next}
+                  className="inline-flex h-10 min-w-0 items-center gap-1.5 rounded-md border border-line bg-card px-3 text-sm font-semibold hover:bg-bg disabled:opacity-40">
+                  <span className="truncate">{next ? `다음 · ${next.name}` : '다음'}</span><span aria-hidden>→</span>
+                </button>
+              </div>
               <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                 <div>
                   <div className="text-xs font-semibold text-primary">{labelOf(current.category)}</div>
