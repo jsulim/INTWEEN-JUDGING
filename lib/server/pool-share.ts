@@ -12,9 +12,9 @@ export async function loadShare(token: string): Promise<PoolShare | null> {
   return s
 }
 
-/** 공유 대상 심사위원 (추천 경로·연락처 등 내부 정보는 빼고 반환) */
+/** 공유 대상 심사위원 (연락처 등 내부 정보는 빼고 반환) */
 export async function shareEntries(s: PoolShare) {
-  let q = supabaseAdmin().from('judge_pool').select('id, name, affiliation, position, category, expertise, career, resume_path, docs')
+  let q = supabaseAdmin().from('judge_pool').select('id, name, affiliation, position, category, expertise, career, resume_path, docs, source, profile')
     .eq('shareable', true).order('category').order('name')
   if (s.categories?.length) q = q.in('category', s.categories)
   // 대회 링크면 그 대회 후보만
@@ -25,5 +25,5 @@ export async function shareEntries(s: PoolShare) {
     q = q.in('id', ids)
   }
   const { data } = await q
-  return ((data ?? []) as Pick<JudgePoolEntry, 'id' | 'name' | 'affiliation' | 'position' | 'category' | 'expertise' | 'career' | 'resume_path' | 'docs'>[])
+  return ((data ?? []) as Pick<JudgePoolEntry, 'id' | 'name' | 'affiliation' | 'position' | 'category' | 'expertise' | 'career' | 'resume_path' | 'docs' | 'source' | 'profile'>[])
 }

@@ -349,6 +349,17 @@ export interface JudgePoolEntry {
   resume_path: string | null
   docs: { label: string; path: string }[]
   shareable: boolean
+  profile: PoolProfile | null
+}
+
+/** 기관 검토 화면에 보이는 후보 소개 */
+export interface PoolProfile {
+  region?: string | null
+  summary?: string
+  fields?: string[]
+  career?: string[]
+  education?: string[]
+  certs?: string[]
 }
 
 /** 심사위원 풀 공유 링크 (기관 검토용) */

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import { cn } from '@/components/ui'
 import PdfViewer, { type ViewerFile } from '@/components/judge/PdfViewer'
+import type { PoolProfile } from '@/lib/types'
 
 export interface PoolCard {
   id: string
@@ -13,6 +14,52 @@ export interface PoolCard {
   expertise: string[]
   hasResume: boolean
   docs: string[] // 증빙 이름
+  source: string | null // 추천 경로 (예: 인트윈+경상대)
+  profile: PoolProfile | null
+}
+
+const sourceLabel = (s: string | null) => (s ? `${s.split('+').map(x => x.trim()).filter(Boolean).join(' · ')} 추천` : null)
+
+function ProfilePanel({ c, category }: { c: PoolCard; category: string }) {
+  const p = c.profile ?? {}
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <section className="border-t border-line pt-4">
+      <h3 className="mb-2 text-xs font-bold tracking-wide text-primary">{title}</h3>
+      {children}
+    </section>
+  )
+  const list = (xs?: string[]) => !!xs?.length && (
+    <ul className="grid gap-1.5 text-sm leading-relaxed">{xs.map(x => <li key={x} className="flex gap-2"><span className="text-muted">·</span><span>{x}</span></li>)}</ul>
+  )
+  const meta = [category, sourceLabel(c.source), p.region].filter(Boolean) as string[]
+  return (
+    <div className="grid gap-4 rounded-lg border border-line bg-card p-5">
+      <div>
+        <h2 className="text-2xl font-black leading-tight">{c.name}</h2>
+        <div className="mt-0.5 text-muted">{c.affiliation}{c.position && ` · ${c.position}`}</div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {meta.map((m, i) => (
+            <span key={m} className={cn('rounded-full px-2.5 py-1 text-xs font-semibold',
+              i === 0 ? 'bg-primary text-primary-fg' : 'bg-bg text-muted')}>{m}</span>
+          ))}
+        </div>
+        {p.summary && <p className="mt-4 text-[15px] leading-relaxed">{p.summary}</p>}
+      </div>
+      {!!(p.fields?.length || c.expertise.length) && (
+        <Section title="분야">
+          <div className="flex flex-wrap gap-1.5">
+            {(p.fields?.length ? p.fields : c.expertise).map(x => (
+              <span key={x} className="rounded-md bg-[var(--ev-soft)] px-2.5 py-1 text-sm font-semibold text-[var(--ev-deep)]">{x}</span>
+            ))}
+          </div>
+        </Section>
+      )}
+      {!!p.career?.length && <Section title="주요 경력">{list(p.career)}</Section>}
+      {!!p.education?.length && <Section title="학력">{list(p.education)}</Section>}
+      {!!p.certs?.length && <Section title="자격"><p className="text-sm leading-relaxed">{p.certs.join(' · ')}</p></Section>}
+      {!c.profile && <p className="text-sm text-muted">소개가 아직 등록되지 않았습니다. 이력서를 확인해 주세요.</p>}
+    </div>
+  )
 }
 
 // 분야 탭 → 후보 목록 → 선택한 후보의 이력서·증빙 뷰어 (다운로드 버튼 없음)
@@ -84,7 +131,7 @@ export default function PoolViewer({ token, cards, categories }: {
         })}
       </div>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="mt-4 grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_360px]">
         {/* 목록 */}
         <aside className="lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:overflow-hidden">
           <div className="flex h-full flex-col rounded-lg border border-line bg-card">
@@ -132,18 +179,7 @@ export default function PoolViewer({ token, cards, categories }: {
                   <span className="truncate">{next ? `다음 · ${next.name}` : '다음'}</span><span aria-hidden>→</span>
                 </button>
               </div>
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <div className="text-xs font-semibold text-primary">{labelOf(current.category)}</div>
-                  <h2 className="text-2xl font-black">{current.name}{current.position && <span className="ml-2 text-base font-semibold text-muted">{current.position}</span>}</h2>
-                  <div className="text-muted">{current.affiliation}</div>
-                </div>
-                {current.expertise.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {current.expertise.map(x => <span key={x} className="rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-muted">{x}</span>)}
-                  </div>
-                )}
-              </div>
+              <div className="mb-3 2xl:hidden"><ProfilePanel c={current} category={labelOf(current.category)} /></div>
               <PdfViewer key={current.id} files={files} watermarkName="" resolveUrl={resolveUrl}
                 emptyText="등록된 이력서가 없습니다." className="h-[78vh] lg:h-[calc(100vh-9rem)]" />
             </>
@@ -151,6 +187,13 @@ export default function PoolViewer({ token, cards, categories }: {
             <div className="flex h-[60vh] items-center justify-center rounded-lg border border-line bg-card text-muted">왼쪽 목록에서 후보를 선택하세요.</div>
           )}
         </section>
+
+        {/* 소개 (넓은 화면) */}
+        {current && (
+          <aside className="hidden 2xl:block 2xl:sticky 2xl:top-4 2xl:h-[calc(100vh-2rem)] 2xl:overflow-y-auto">
+            <ProfilePanel c={current} category={labelOf(current.category)} />
+          </aside>
+        )}
       </div>
     </div>
   )

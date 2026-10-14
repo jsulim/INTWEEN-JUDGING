@@ -43,6 +43,7 @@ export default async function PoolSharePage({ params }: { params: { token: strin
   const cards: PoolCard[] = entries.map(e => ({
     id: e.id, name: e.name, affiliation: e.affiliation, position: e.position, category: e.category,
     expertise: e.expertise ?? [], hasResume: !!e.resume_path, docs: (e.docs ?? []).map(d => d.label),
+    source: e.source, profile: e.profile ?? null,
   }))
   const cats = POOL_CATEGORIES.filter(c => !share.categories?.length || share.categories.includes(c.code))
 
