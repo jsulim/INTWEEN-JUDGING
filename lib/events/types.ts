@@ -25,7 +25,7 @@ export type EventConfig = {
   hosts: { role: string; name: string }[]
   schedule: { label: string; date: string; desc: string; highlight?: boolean }[]
   timetable: { title: string; note?: string; rows: { time: string; item: string; desc?: string }[] }
-  criteria: { name: string; points: string[] }[]
+  criteria: { name: string; score?: number; points: string[] }[]
   judgingRules: { label: string; value: string }[]
   awards: { name: string; prize: string; count: string }[]
   awardsNote?: string

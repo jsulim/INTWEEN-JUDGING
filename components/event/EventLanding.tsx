@@ -194,7 +194,9 @@ export default function EventLanding({ config: c, showLogin }: { config: EventCo
               <ul className="mt-5 space-y-4">
                 {c.criteria.map(cr => (
                   <li key={cr.name}>
-                    <div className="font-bold text-[var(--ev-deep)]">{cr.name}</div>
+                    <div className="flex items-baseline justify-between gap-2 font-bold text-[var(--ev-deep)]">
+                      {cr.name}{cr.score != null && <span className="text-sm text-[var(--ev-primary)]">{cr.score}점</span>}
+                    </div>
                     <ul className="mt-1 space-y-0.5 text-sm text-black/60">
                       {cr.points.map(p => <li key={p}>· {p}</li>)}
                     </ul>
