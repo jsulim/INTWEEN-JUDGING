@@ -24,15 +24,18 @@ export const POST = handle(async (req: Request) => {
   const b = parsed.data
   const admin = supabaseAdmin()
 
-  const { data: judge } = await admin.from('judges').select('*').eq('id', b.judge_id).eq('user_id', user.id).maybeSingle()
+  // 조회는 한 번에 (서명 저장 대기 시간 단축)
+  const [{ data: judge }, { data: tpl }, { data: existing }] = await Promise.all([
+    admin.from('judges').select('*, programs(title)').eq('id', b.judge_id).eq('user_id', user.id).maybeSingle(),
+    admin.from('consent_templates').select('*').eq('id', b.template_id).maybeSingle(),
+    admin.from('consents').select('id').eq('judge_id', b.judge_id).eq('template_id', b.template_id).maybeSingle(),
+  ])
   if (!judge) throw new ApiError(403, '본인 심사위원 정보가 아닙니다.')
-  const { data: tpl } = await admin.from('consent_templates').select('*').eq('id', b.template_id).maybeSingle()
   const t = tpl as ConsentTemplate | null
   const j = judge as Judge
   if (!t || t.program_id !== j.program_id) throw new ApiError(404, '동의서 양식을 찾을 수 없습니다.')
   if (!t.is_active) throw new ApiError(409, '개정된 양식이 있습니다. 새로고침 후 다시 서명하세요.')
 
-  const { data: existing } = await admin.from('consents').select('id').eq('judge_id', j.id).eq('template_id', t.id).maybeSingle()
   if (existing) throw new ApiError(409, '이미 서명한 동의서입니다.')
 
   const png = parsePngDataUrl(b.signature)
@@ -48,7 +51,7 @@ export const POST = handle(async (req: Request) => {
     if (conflictDeclared && !conflictNote) throw new ApiError(400, '이해관계 내용을 입력하세요.')
   }
 
-  const { data: program } = await admin.from('programs').select('title').eq('id', j.program_id).single()
+  const program = (judge as { programs: { title: string } | null }).programs
   const signedAt = new Date().toISOString()
   const ip = clientIp(req)
   const userAgent = req.headers.get('user-agent')
@@ -87,8 +90,7 @@ export const POST = handle(async (req: Request) => {
   }
 
   try {
-    await uploadBytes(`${base}.png`, png, 'image/png')
-    await uploadBytes(`${base}.pdf`, pdf, 'application/pdf')
+    await Promise.all([uploadBytes(`${base}.png`, png, 'image/png'), uploadBytes(`${base}.pdf`, pdf, 'application/pdf')])
   } catch (e) {
     await admin.from('consents').delete().eq('id', row.id)
     await admin.storage.from(BUCKET).remove([`${base}.png`, `${base}.pdf`])

@@ -1,14 +1,13 @@
 'use client'
 import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { Alert, Button, Field, Input } from '@/components/ui'
 import AuthFrame from '@/components/AuthFrame'
 
 // P-01 로그인: 이메일+비밀번호, 역할에 따라 각 홈으로 리다이렉트
 function LoginForm() {
-  const router = useRouter()
   const params = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,16 +20,20 @@ function LoginForm() {
     setBusy(true)
     setError(null)
     const supabase = supabaseBrowser()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setBusy(false)
       setError('이메일 또는 비밀번호가 올바르지 않습니다.')
       return
     }
-    await supabase.rpc('log_event', { p_action: 'login', p_meta: { ua: navigator.userAgent } })
+    // 로그 기록과 권한 조회를 함께 하고, /home 을 거치지 않고 바로 각자 홈으로 (화면 전환 1회)
+    const [, { data: prof }] = await Promise.all([
+      supabase.rpc('log_event', { p_action: 'login', p_meta: { ua: navigator.userAgent } }),
+      supabase.from('profiles').select('role').eq('user_id', data.user.id).maybeSingle(),
+    ])
     const next = params.get('next')
-    router.replace(next && next.startsWith('/') ? next : '/home')
-    router.refresh()
+    const home = ({ company: '/c', judge: '/j', admin: '/a' } as Record<string, string>)[prof?.role ?? ''] ?? '/home'
+    window.location.assign(next && next.startsWith('/') && !next.startsWith('//') ? next : home)
   }
 
   return (
