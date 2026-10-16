@@ -39,7 +39,9 @@ export default function JoinAuth({ programId }: { programId: string }) {
     if (error) {
       return setError(/registered|exists/i.test(error.message)
         ? '이미 가입된 이메일입니다. 「로그인」을 눌러 주세요.'
-        : error.message.includes('Password') ? '비밀번호는 8자 이상으로 정해 주세요.' : '가입하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+        : error.message.includes('Password') ? '비밀번호는 8자 이상으로 정해 주세요.'
+        : /rate limit|too many/i.test(error.message) ? '가입 요청이 많아 잠시 막혔습니다. 1시간쯤 뒤에 다시 시도하거나 운영사무국에 문의해 주세요.'
+        : '가입하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
     if (data.session) router.replace(next)
     else setSent(true) // 이메일 확인을 켜 둔 경우: 메일 링크 → 신청서
