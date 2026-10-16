@@ -27,7 +27,7 @@ export default async function StageCompanies({ params }: { params: { stageId: st
         actions={<>
           {d.stage.is_presentation && <LinkButton href={`${base}/live`} variant="secondary">현장 모드</LinkButton>}
           <LinkButton href={`${base}/summary`} variant="outline">내 평가 요약</LinkButton>
-          <LinkButton href={`${base}/submit`} variant={d.counts.done === d.counts.total && !d.evalSubmitted ? 'primary' : 'outline'}>최종 제출</LinkButton>
+          <LinkButton href={`${base}/submit`} variant={d.counts.done === d.counts.total && !d.evalSubmitted ? 'primary' : 'outline'}>최종 확인 · 제출</LinkButton>
         </>}
       />
       <div className="mb-4 grid gap-3 rounded-lg border border-line bg-card p-4 sm:grid-cols-[1fr_auto] sm:items-center">

@@ -54,11 +54,7 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
             {d.stage.blind_mode && <Badge tone="primary">블라인드</Badge>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="tabular text-sm text-muted">{pos + 1} / {navigable.length}</span>
-          <NavLink href={prev && `${base}/c/${prev.company_id}`} label="← 이전" />
-          <NavLink href={next && `${base}/c/${next.company_id}`} label="다음 →" />
-        </div>
+        <span className="tabular text-sm text-muted">{pos + 1} / {navigable.length}</span>
       </div>
 
       {row.conflict ? (
@@ -66,8 +62,8 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
           <PdfViewer key={row.company_id} files={files} watermarkName={profile.name || user.email || ''}
-            className="h-[70vh] lg:h-[calc(100vh-11.5rem)]" />
-          <div className="overflow-hidden rounded-lg border border-line bg-bg lg:h-[calc(100vh-11.5rem)] lg:overflow-y-auto">
+            className="h-[70vh] lg:h-[calc(100vh-15rem)]" />
+          <div className="overflow-hidden rounded-lg border border-line bg-bg lg:h-[calc(100vh-15rem)] lg:overflow-y-auto">
             <ScoringPanel
               key={row.assignment_id}
               assignmentId={row.assignment_id}
@@ -83,11 +79,20 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
           </div>
         </div>
       )}
+
+      {/* 하단 이동: 이전 기업 / 다음 기업. 마지막 기업 다음은 최종 확인(제출 전 점수 검토) */}
+      <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
+        <NavLink href={prev && `${base}/c/${prev.company_id}`} label={prev ? `← 이전 기업 · ${prev.display_name}` : '← 이전 기업'} />
+        {next
+          ? <NavLink href={`${base}/c/${next.company_id}`} label={`다음 기업 · ${next.display_name} →`} primary />
+          : <NavLink href={d.evalSubmitted ? base : `${base}/submit`} label={d.evalSubmitted ? '기업 목록으로' : '최종 확인 →'} primary />}
+      </div>
     </div>
   )
 }
 
-function NavLink({ href, label }: { href?: string | false; label: string }) {
-  if (!href) return <span className={cn(buttonClass('outline', 'sm'), 'pointer-events-none opacity-40')}>{label}</span>
-  return <Link href={href} className={buttonClass('outline', 'sm')}>{label}</Link>
+function NavLink({ href, label, primary }: { href?: string | false; label: string; primary?: boolean }) {
+  const cls = cn(buttonClass(primary ? 'primary' : 'outline'), 'min-w-0 max-w-[48%]')
+  if (!href) return <span className={cn(cls, 'pointer-events-none opacity-40')}><span className="truncate">{label}</span></span>
+  return <Link href={href} className={cls}><span className="truncate">{label}</span></Link>
 }

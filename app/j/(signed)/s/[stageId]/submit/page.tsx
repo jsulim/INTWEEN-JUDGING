@@ -28,7 +28,7 @@ export default async function SubmitPage({ params }: { params: { stageId: string
   return (
     <>
       <PageHeader back={{ href: base, label: '기업 목록' }}
-        title={<span className="flex items-center gap-2">평가표 최종 제출<StageStatusBadge status={d.stage.status} /></span>}
+        title={<span className="flex items-center gap-2">최종 확인 · 제출<StageStatusBadge status={d.stage.status} /></span>}
         description={`${d.program.title} · ${d.stage.name} · 평가 ${targets.length}개 기업`} />
 
       {sub?.status === 'submitted' ? (
@@ -67,13 +67,15 @@ export default async function SubmitPage({ params }: { params: { stageId: string
             </Card>
           ) : (
             <>
-              <Card title="제출 내용 확인">
+              <Card title="평가 결과 최종 확인">
+                <p className="mb-3 text-sm text-muted">기업별 점수와 종합 심사평을 확인하세요. 고칠 곳이 있으면 기업명을 눌러 수정한 뒤 다시 오면 됩니다.</p>
                 <Table>
                   <thead>
                     <tr>
                       <th>기업</th>
                       {d.criteria.map(c => <th key={c.id} className="text-right">{c.name}<span className="tabular ml-1 font-normal">({fmtScore(c.max_score)})</span></th>)}
-                      <th className="text-right">합계</th>
+                      <th className="text-right">합계<span className="tabular ml-1 font-normal">({fmtScore(d.criteria.reduce((a, c) => a + Number(c.max_score), 0))})</span></th>
+                      <th>종합 심사평</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -81,9 +83,10 @@ export default async function SubmitPage({ params }: { params: { stageId: string
                       const sc = new Map((d.scores.get(r.assignment_id) ?? []).map(s => [s.criterion_id, s.score]))
                       return (
                         <tr key={r.company_id}>
-                          <td className="font-semibold">{r.display_name}</td>
+                          <td className="font-semibold"><Link href={`${base}/c/${r.company_id}`} className="hover:text-primary hover:underline">{r.display_name}</Link></td>
                           {d.criteria.map(c => <td key={c.id} className="tabular text-right">{fmtScore(sc.get(c.id))}</td>)}
                           <td className="tabular text-right font-bold">{fmtScore(r.total)}</td>
+                          <td className="max-w-[280px] text-sm text-muted"><span className="line-clamp-2">{d.reviews.get(r.assignment_id)?.overall_comment || '-'}</span></td>
                         </tr>
                       )
                     })}
@@ -91,7 +94,7 @@ export default async function SubmitPage({ params }: { params: { stageId: string
                 </Table>
                 {d.counts.conflict > 0 && <p className="mt-2 text-xs text-muted">이해충돌 제외 {d.counts.conflict}개 기업은 제출 대상이 아닙니다.</p>}
               </Card>
-              <Card title="서명 후 제출">
+              <Card title="제출">
                 <SubmitForm stageId={d.stage.id} base={base} />
               </Card>
             </>

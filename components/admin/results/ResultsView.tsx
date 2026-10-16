@@ -10,6 +10,7 @@ import { Alert, Badge, Button, Card, Input, LinkButton, Stat, Table, Textarea, c
 import { ResultBadge, StageStatusBadge } from '@/components/StatusBadges'
 import { ConfirmDialog, DownloadLink, Toggle, callApi } from './ui'
 import ScoreEditDialog, { type ScoreEditTarget } from './ScoreEditDialog'
+import CompanyScoreSheet from './CompanyScoreSheet'
 
 export interface ResultsViewProps {
   programId: string
@@ -138,6 +139,10 @@ export default function ResultsView(p: ResultsViewProps) {
 
   // ── 재오픈
   const [edit, setEdit] = useState<ScoreEditTarget | null>(null)
+  // 기업별 점수표: 선택한 기업 (매트릭스에서 기업명을 누르면 이동)
+  const [sheetId, setSheetId] = useState<string | null>(results[0]?.company_id ?? null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const openSheet = (id: string) => { setSheetId(id); setTimeout(() => sheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30) }
   function openEdit(a: { id: string; company_id: string }, judgeName: string) {
     setEdit({
       assignment_id: a.id, judgeName, companyName: label(a.company_id),
@@ -297,7 +302,7 @@ export default function ResultsView(p: ResultsViewProps) {
               <tr>
                 <th>기업</th>
                 {judges.map(j => <th key={j.id} className="text-right">{j.name}{j.is_chair && <span className="ml-1 text-xs text-primary">위원장</span>}</th>)}
-                <th className="text-right">평균</th><th className="text-right">편차</th>
+                <th className="text-right">평균</th><th className="text-right">편차</th><th className="text-right">최종</th><th className="text-right">순위</th>
               </tr>
             </thead>
             <tbody>
@@ -305,7 +310,10 @@ export default function ResultsView(p: ResultsViewProps) {
                 const totals = new Map(r.judge_totals.map(t => [t.judge_id, t]))
                 return (
                   <tr key={r.company_id}>
-                    <td className="whitespace-nowrap font-semibold">{label(r.company_id)}</td>
+                    <td className="whitespace-nowrap font-semibold">
+                      <button type="button" onClick={() => openSheet(r.company_id)} title="기업별 점수표 보기"
+                        className="hover:text-primary hover:underline">{label(r.company_id)}</button>
+                    </td>
                     {judges.map(j => {
                       const a = asgOf(r.company_id, j.id)
                       const t = totals.get(j.id)
@@ -328,6 +336,8 @@ export default function ResultsView(p: ResultsViewProps) {
                     })}
                     <td className="tabular text-right font-semibold">{fmtScore(r.raw, 3)}</td>
                     <td className={cn('tabular text-right', r.deviation_alert && 'font-bold text-[#b07a00]')}>{fmtScore(r.deviation)}</td>
+                    <td className="tabular text-right font-bold">{fmtScore(r.final, 2)}</td>
+                    <td className="tabular text-right">{r.rank ?? '-'}</td>
                   </tr>
                 )
               })}
@@ -335,6 +345,11 @@ export default function ResultsView(p: ResultsViewProps) {
           </Table>
         )}
       </Card>
+
+      <CompanyScoreSheet ref={sheetRef} companyId={sheetId} onSelect={setSheetId} results={results} criteria={criteria}
+        judges={judges} assignments={assignments} scores={p.scores}
+        overall={new Map(p.reviews.map(x => [x.assignment_id, x.overall_comment]))} progress={p.progress} label={label}
+        passScore={passScore} normalize={stage.normalize} onEdit={locked ? undefined : (a, name) => openEdit(a, name)} />
 
       {/* 항목별 평균 */}
       <Card title="항목별 평균">
