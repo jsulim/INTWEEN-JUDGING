@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
@@ -27,7 +27,10 @@ export default function PaymentsManager({ programId, perSession, canPay, rows }:
   const router = useRouter()
   const sb = supabaseBrowser()
   const [msg, setMsg] = useState<{ tone: 'accent' | 'danger' | 'highlight'; text: string } | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [working, setBusy] = useState(false)
+  // 화면 갱신이 끝날 때까지 버튼을 잠가 두 번 누르지 않게 한다
+  const [refreshing, startRefresh] = useTransition()
+  const busy = working || refreshing
   const [sessions, setSessions] = useState<Record<string, string>>(() => Object.fromEntries(rows.filter(r => r.payment).map(r => [r.payment!.id, String(r.payment!.sessions)])))
   useEffect(() => { setSessions(Object.fromEntries(rows.filter(r => r.payment).map(r => [r.payment!.id, String(r.payment!.sessions)]))) }, [rows])
   const [revealed, setRevealed] = useState<Record<string, { account: string | null; rrn: string | null; until: number }>>({})
@@ -51,7 +54,7 @@ export default function PaymentsManager({ programId, perSession, canPay, rows }:
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true)
-    try { await fn(); setMsg({ tone: 'accent', text: ok }); router.refresh() }
+    try { await fn(); setMsg({ tone: 'accent', text: ok }); startRefresh(() => router.refresh()) }
     catch (e) { setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '처리하지 못했습니다.' }) }
     finally { setBusy(false) }
   }

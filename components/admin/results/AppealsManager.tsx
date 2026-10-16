@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { APPEAL_STATUS, fmtDate } from '@/lib/format'
@@ -57,7 +57,10 @@ function AppealCard({ programId, a }: { programId: string; a: AppealRow }) {
   const router = useRouter()
   const decided = a.status === 'accepted' || a.status === 'rejected'
   const [form, setForm] = useState({ review_note: a.review_note ?? '', rereview: a.rereview, response: a.response ?? '' })
-  const [busy, setBusy] = useState(false)
+  const [working, setBusy] = useState(false)
+  // 화면 갱신이 끝날 때까지 버튼을 잠가 두 번 누르지 않게 한다
+  const [refreshing, startRefresh] = useTransition()
+  const busy = working || refreshing
   const [msg, setMsg] = useState<{ tone: 'accent' | 'danger'; text: string } | null>(null)
   const [decide, setDecide] = useState<'accepted' | 'rejected' | null>(null)
 
@@ -67,7 +70,7 @@ function AppealCard({ programId, a }: { programId: string; a: AppealRow }) {
       await api(`/api/appeals/${a.id}`, { method: 'PATCH', body: { ...form, ...(status ? { status } : {}) } })
       setMsg({ tone: 'accent', text: status === 'accepted' || status === 'rejected' ? `${APPEAL_STATUS[status]} 결정 · 회신 저장됨` : '저장됨' })
       setDecide(null)
-      router.refresh()
+      startRefresh(() => router.refresh())
     } catch (e) {
       setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '저장하지 못했습니다.' })
     } finally { setBusy(false) }

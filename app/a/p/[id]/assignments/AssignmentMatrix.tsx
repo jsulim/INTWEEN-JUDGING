@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { Alert, Badge, Button, Card, Empty, Table, cn } from '@/components/ui'
 import { EligibilityBadge } from '@/components/StatusBadges'
@@ -18,6 +18,10 @@ export default function AssignmentMatrix({ stage, companies, judges, assignments
   const { busy, error, notice, run } = useRun()
   const [hideIneligible, setHideIneligible] = useState(false)
   const map = useMemo(() => new Map(assignments.map(a => [key(a.judge_id, a.company_id), a])), [assignments])
+  // 누른 칸은 서버 반영 전에도 바로 체크 상태를 보여준다 (새 배정 목록이 오면 초기화)
+  const [flip, setFlip] = useState<Record<string, boolean>>({})
+  useEffect(() => setFlip({}), [assignments])
+  const setCell = (k: string, v: boolean | null) => setFlip(f => { const n = { ...f }; if (v === null) delete n[k]; else n[k] = v; return n })
   const locked = stage.status === 'locked' || stage.status === 'published'
   const eligible = companies.filter(c => c.eligibility !== 'ineligible')
   const shown = hideIneligible ? eligible : companies
@@ -45,12 +49,18 @@ export default function AssignmentMatrix({ stage, companies, judges, assignments
   }
 
   async function toggle(j: Ju, c: Co) {
-    const a = map.get(key(j.id, c.id))
-    if (!a) return run(async () => { must(await sb.from('assignments').insert({ stage_id: stage.id, judge_id: j.id, company_id: c.id })) })
+    const k = key(j.id, c.id)
+    const a = map.get(k)
+    if (!a) {
+      setCell(k, true)
+      if (!(await run(async () => { must(await sb.from('assignments').insert({ stage_id: stage.id, judge_id: j.id, company_id: c.id })) }))) setCell(k, null)
+      return
+    }
     if (a.conflict) return restore(a, j.name, c.name)
     const n = scoreCount[a.id] ?? 0
     if (n > 0 && !confirm(`${j.name} → ${c.name} 배정을 해제합니다.\n입력된 점수 ${n}건과 심사평이 함께 삭제됩니다. 이해충돌이라면 '충돌 제외'를 사용하세요.`)) return
-    await run(async () => { must(await sb.from('assignments').delete().eq('id', a.id)) })
+    setCell(k, false)
+    if (!(await run(async () => { must(await sb.from('assignments').delete().eq('id', a.id)) }))) setCell(k, null)
   }
 
   async function markConflict(j: Ju, c: Co) {
@@ -140,7 +150,7 @@ export default function AssignmentMatrix({ stage, companies, judges, assignments
                       ) : (
                         <div className="group flex items-center justify-center gap-1">
                           <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--primary))]" aria-label={`${j.name}-${c.name}`}
-                            checked={!!a} disabled={busy || locked || (inel && !a)} onChange={() => toggle(j, c)} />
+                            checked={flip[key(j.id, c.id)] ?? !!a} disabled={busy || locked || (inel && !a)} onChange={() => toggle(j, c)} />
                           {scored > 0 && <span className="tabular text-[10px] text-accent" title="입력된 점수 항목 수">{scored}</span>}
                           {!locked && <button className="text-xs text-muted opacity-0 hover:text-[#8a5a00] group-hover:opacity-100 disabled:opacity-0" disabled={busy}
                             title="이해충돌 제외" onClick={() => markConflict(j, c)}>⊘</button>}

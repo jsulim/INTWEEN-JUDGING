@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { Alert, Badge, Button, Card, Empty, Field, Input, Progress, Textarea } from '@/components/ui'
-import { Check, Feedback, must, useRun } from '@/components/admin/setup/client'
+import { Check, Feedback, must, useRun, useSynced } from '@/components/admin/setup/client'
 import { CONSENT_KINDS, DEFAULT_CONSENTS, PAYMENT_CONSENT } from '@/components/admin/setup/consent-defaults'
 import { fmtDate } from '@/lib/format'
 import type { ConsentTemplate } from '@/lib/types'
@@ -14,6 +14,7 @@ function KindCard({ kind, versions, signedCount, judgeCount }:
   const { busy, error, notice, run } = useRun()
   const active = versions.find(v => v.is_active) ?? null
   const latest = versions[0]
+  const [req, setReq] = useSynced(active?.required ?? false)
   const [edit, setEdit] = useState(false)
   const [title, setTitle] = useState(latest.title)
   const [body, setBody] = useState(latest.body)
@@ -38,7 +39,9 @@ function KindCard({ kind, versions, signedCount, judgeCount }:
 
   async function setRequired(v: boolean) {
     if (!active) return
-    await run(async () => { must(await sb.from('consent_templates').update({ required: v }).eq('id', active.id)) })
+    setReq(v)
+    const ok = await run(async () => { must(await sb.from('consent_templates').update({ required: v }).eq('id', active.id)) })
+    if (!ok) setReq(!v)
   }
 
   async function activate(t: ConsentTemplate) {
@@ -90,7 +93,7 @@ function KindCard({ kind, versions, signedCount, judgeCount }:
             </div>
           </div>
           <div className="max-h-56 overflow-y-auto whitespace-pre-line rounded-md border border-line bg-bg p-3 text-sm leading-relaxed">{active.body}</div>
-          <Check label="필수 서명" hint="필수 양식을 모두 서명해야 심사위원이 자료 열람·평가를 할 수 있습니다." checked={active.required} disabled={busy} onChange={setRequired} />
+          <Check label="필수 서명" hint="필수 양식을 모두 서명해야 심사위원이 자료 열람·평가를 할 수 있습니다." checked={req} disabled={busy} onChange={setRequired} />
         </div>
       ) : <p className="text-sm text-muted">사용 중인 버전이 없습니다. 심사위원에게 서명을 요청하지 않습니다.</p>}
 

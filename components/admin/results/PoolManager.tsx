@@ -1,5 +1,5 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
@@ -23,7 +23,10 @@ export default function PoolManager({ rows, programs }: { rows: PoolRow[]; progr
   const [tag, setTag] = useState<string | null>(null)
   const [prog, setProg] = useState('')
   const [msg, setMsg] = useState<{ tone: 'accent' | 'danger'; text: string } | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [working, setBusy] = useState(false)
+  // 화면 갱신이 끝날 때까지 버튼을 잠가 두 번 누르지 않게 한다
+  const [refreshing, startRefresh] = useTransition()
+  const busy = working || refreshing
   const [edit, setEdit] = useState<{ id: string | null; form: Form } | null>(null)
   const [del, setDel] = useState<PoolRow | null>(null)
   const [assign, setAssign] = useState<{ row: PoolRow; program_id: string; is_chair: boolean } | null>(null)
@@ -47,7 +50,7 @@ export default function PoolManager({ rows, programs }: { rows: PoolRow[]; progr
 
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true)
-    try { await fn(); setMsg({ tone: 'accent', text: ok }); router.refresh() }
+    try { await fn(); setMsg({ tone: 'accent', text: ok }); startRefresh(() => router.refresh()) }
     catch (e) { setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '처리하지 못했습니다.' }) }
     finally { setBusy(false) }
   }

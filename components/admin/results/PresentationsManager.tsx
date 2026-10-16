@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
@@ -33,7 +33,10 @@ export default function PresentationsManager({ stage, slots, unslotted }: {
 }) {
   const router = useRouter()
   const [msg, setMsg] = useState<Msg>(null)
-  const [busy, setBusy] = useState(false)
+  const [working, setBusy] = useState(false)
+  // 화면 갱신이 끝날 때까지 버튼을 잠가 두 번 누르지 않게 한다
+  const [refreshing, startRefresh] = useTransition()
+  const busy = working || refreshing
   const now = useNow()
   const sb = supabaseBrowser()
 
@@ -54,7 +57,7 @@ export default function PresentationsManager({ stage, slots, unslotted }: {
 
   const run = async (fn: () => Promise<void>, ok?: string) => {
     setBusy(true)
-    try { await fn(); if (ok) setMsg({ tone: 'accent', text: ok }); router.refresh() }
+    try { await fn(); if (ok) setMsg({ tone: 'accent', text: ok }); startRefresh(() => router.refresh()) }
     catch (e) { setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '처리하지 못했습니다.' }) }
     finally { setBusy(false) }
   }

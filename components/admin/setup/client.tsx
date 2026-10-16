@@ -1,6 +1,6 @@
 'use client'
 // 관리자 설정·운영 화면 공용 클라이언트 헬퍼
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Alert, cn } from '@/components/ui'
 
@@ -20,10 +20,20 @@ export function must<T>(res: { data?: T; error: { message: string } | null }): T
   return res.data as T
 }
 
-/** 비동기 작업 실행 + busy/error/notice 상태 + 성공 시 router.refresh() */
+/** 서버 값(prop)을 화면에 바로 반영하기 위한 로컬 사본. prop 이 바뀌면 다시 맞춘다 (체크박스가 저장 중 원래대로 튀는 현상 방지) */
+export function useSynced<T>(value: T): [T, (v: T) => void] {
+  const [v, setV] = useState(value)
+  useEffect(() => setV(value), [value])
+  return [v, setV]
+}
+
+/** 비동기 작업 실행 + busy/error/notice 상태 + 성공 시 router.refresh()
+ *  화면 갱신(refresh)이 끝날 때까지 busy 를 유지해 버튼을 두 번 누르지 않게 한다 */
 export function useRun() {
   const router = useRouter()
-  const [busy, setBusy] = useState(false)
+  const [refreshing, startRefresh] = useTransition()
+  const [running, setBusy] = useState(false)
+  const busy = running || refreshing
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   async function run(fn: () => Promise<unknown>, opts?: { success?: string; refresh?: boolean }) {
@@ -33,7 +43,7 @@ export function useRun() {
     try {
       await fn()
       if (opts?.success) setNotice(opts.success)
-      if (opts?.refresh !== false) router.refresh()
+      if (opts?.refresh !== false) startRefresh(() => router.refresh())
       return true
     } catch (e) {
       setError(errMsg(e))

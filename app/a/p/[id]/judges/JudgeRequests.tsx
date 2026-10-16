@@ -4,13 +4,14 @@ import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
 import { fmtDate } from '@/lib/format'
 import { Badge, Button, Card, Input, Table } from '@/components/ui'
-import { Check, Feedback, must, useRun } from '@/components/admin/setup/client'
+import { Check, Feedback, must, useRun, useSynced } from '@/components/admin/setup/client'
 import { EVENTS } from '@/lib/events'
 import type { JudgeRequest } from '@/lib/types'
 
 // 심사위원 자가 가입 신청 (A-06). 가입 링크를 열어 두면 심사위원이 Google·이메일로 신청하고, 여기서 승인한다.
 export default function JudgeRequests({ programId, open, requests }: { programId: string; open: boolean; requests: JudgeRequest[] }) {
   const { busy, error, notice, run, setNotice } = useRun()
+  const [isOpen, setOpen] = useSynced(open)
   const [link, setLink] = useState('')
   useEffect(() => {
     // 대회 전용 주소가 연결된 프로그램이면 그 주소의 짧은 링크를 안내한다
@@ -20,9 +21,13 @@ export default function JudgeRequests({ programId, open, requests }: { programId
   const pending = requests.filter(r => r.status === 'pending')
   const done = requests.filter(r => r.status !== 'pending')
 
-  const toggle = (v: boolean) => run(async () => {
-    must(await supabaseBrowser().from('programs').update({ judge_signup_open: v }).eq('id', programId))
-  }, { success: v ? '가입 신청을 받습니다.' : '가입 신청을 닫았습니다.' })
+  const toggle = async (v: boolean) => {
+    setOpen(v)
+    const ok = await run(async () => {
+      must(await supabaseBrowser().from('programs').update({ judge_signup_open: v }).eq('id', programId))
+    }, { success: v ? '가입 신청을 받습니다.' : '가입 신청을 닫았습니다.' })
+    if (!ok) setOpen(!v)
+  }
 
   const decide = (r: JudgeRequest, action: 'approve' | 'reject') => run(async () => {
     if (action === 'reject' && !confirm(`${r.name} 님의 신청을 반려할까요?`)) return
@@ -34,7 +39,7 @@ export default function JudgeRequests({ programId, open, requests }: { programId
     <Card title={<span className="flex items-center gap-2">심사위원 가입 신청{pending.length > 0 && <Badge tone="highlight">승인 대기 {pending.length}</Badge>}</span>}>
       <Feedback error={error} notice={notice} />
       <div className="grid gap-4">
-        <Check label="가입 신청 받기" checked={open} onChange={toggle}
+        <Check label="가입 신청 받기" checked={isOpen} disabled={busy} onChange={toggle}
           hint="켜면 아래 링크로 심사위원이 직접 계정(Google 또는 이메일)을 만들어 신청합니다. 승인 전에는 아무 화면도 볼 수 없습니다." />
         {open && (
           <div className="flex flex-wrap items-center gap-2">

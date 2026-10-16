@@ -1,5 +1,5 @@
 'use client'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
@@ -37,7 +37,10 @@ export default function ResultsView(p: ResultsViewProps) {
   const { stage, criteria, results, companies, judges, assignments } = p
   const locked = stage.status === 'locked' || stage.status === 'published'
   const [msg, setMsg] = useState<Msg>(null)
-  const [busy, setBusy] = useState(false)
+  const [working, setBusy] = useState(false)
+  // 화면 갱신이 끝날 때까지 버튼을 잠가 두 번 누르지 않게 한다
+  const [refreshing, startRefresh] = useTransition()
+  const busy = working || refreshing
 
   // ── 실시간 반영 (미확정 단계): 점수·배정 변경 시 재조회
   const timer = useRef<ReturnType<typeof setTimeout>>()
@@ -61,13 +64,20 @@ export default function ResultsView(p: ResultsViewProps) {
   }, [p.source, stage.id, assignments, router])
 
   // ── 집계 방식
+  // 토글은 누르는 즉시 바뀌고, 순위가 다시 계산되어 올 때까지 잠근다
+  const [opt, setOpt] = useState({ normalize: stage.normalize, trim_extremes: stage.trim_extremes })
+  useEffect(() => setOpt({ normalize: stage.normalize, trim_extremes: stage.trim_extremes }), [stage.normalize, stage.trim_extremes])
   async function setOption(key: 'normalize' | 'trim_extremes', value: boolean) {
+    setOpt(o => ({ ...o, [key]: value }))
     setBusy(true)
     const { error } = await supabaseBrowser().from('stages').update({ [key]: value }).eq('id', stage.id)
     setBusy(false)
-    if (error) return setMsg({ tone: 'danger', text: '집계 방식을 변경하지 못했습니다.' })
+    if (error) {
+      setOpt(o => ({ ...o, [key]: !value }))
+      return setMsg({ tone: 'danger', text: '집계 방식을 변경하지 못했습니다.' })
+    }
     setMsg({ tone: 'accent', text: '집계 방식 변경됨 — 순위를 다시 계산했습니다.' })
-    router.refresh()
+    startRefresh(() => router.refresh())
   }
 
   // ── 확정
@@ -81,7 +91,7 @@ export default function ResultsView(p: ResultsViewProps) {
     if (!r.ok) { setLockOpen(false); return setMsg({ tone: 'danger', text: r.data.error ?? '확정하지 못했습니다.' }) }
     setLockOpen(false); setLockWarnings(null)
     setMsg({ tone: 'accent', text: '순위 확정됨 — 결과 스냅샷을 저장했습니다.' })
-    router.refresh()
+    startRefresh(() => router.refresh())
   }
 
   // ── 결과 공개
@@ -91,7 +101,7 @@ export default function ResultsView(p: ResultsViewProps) {
     try {
       await api(`/api/stages/${stage.id}/status`, { method: 'PATCH', body: { status: 'published' } })
       setMsg({ tone: 'accent', text: '결과 공개됨' })
-      router.refresh()
+      startRefresh(() => router.refresh())
     } catch (e) {
       setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '결과를 공개하지 못했습니다.' })
     } finally { setBusy(false); setPubOpen(false) }
@@ -120,7 +130,7 @@ export default function ResultsView(p: ResultsViewProps) {
       setMsg({ tone: 'accent', text: r.next_stage
         ? `통과 ${r.pass}개 · 탈락 ${r.fail}개 — ${r.next_stage.name} 단계에 ${r.created}개 기업 이관`
         : `통과 ${r.pass}개 · 탈락 ${r.fail}개 — 마지막 단계라 이관 없이 결과만 저장했습니다.` })
-      router.refresh()
+      startRefresh(() => router.refresh())
     } catch (e) {
       setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '이관하지 못했습니다.' })
     } finally { setBusy(false); setAdvOpen(false) }
@@ -144,7 +154,7 @@ export default function ResultsView(p: ResultsViewProps) {
       await api('/api/eval/reopen', { body: { judge_id: reopen.judge_id, stage_id: stage.id, reason } })
       setMsg({ tone: 'accent', text: `${reopen.name} 평가 재오픈됨` })
       setReopen(null); setReason('')
-      router.refresh()
+      startRefresh(() => router.refresh())
     } catch (e) {
       setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '재오픈하지 못했습니다.' })
     } finally { setBusy(false) }
@@ -194,9 +204,9 @@ export default function ResultsView(p: ResultsViewProps) {
       {/* 집계 방식 */}
       <Card title="집계 방식" actions={locked ? <Badge>확정 후 변경 불가</Badge> : null}>
         <div className="grid gap-4 md:grid-cols-3">
-          <Toggle checked={stage.normalize} disabled={locked || busy} onChange={v => setOption('normalize', v)} label="점수 정규화"
+          <Toggle checked={opt.normalize} disabled={locked || busy || refreshing} onChange={v => setOption('normalize', v)} label="점수 정규화"
             hint="심사위원별 50 + 10·(점수−평균)/표준편차. 평가 기업 5개 미만 심사위원은 원점수 사용" />
-          <Toggle checked={stage.trim_extremes} disabled={locked || busy} onChange={v => setOption('trim_extremes', v)} label="최고·최저 제외"
+          <Toggle checked={opt.trim_extremes} disabled={locked || busy || refreshing} onChange={v => setOption('trim_extremes', v)} label="최고·최저 제외"
             hint="심사위원 5명 이상인 기업만 최고·최저 1개씩 제외 후 평균" />
           <div className="text-sm text-muted">
             <div>가점·감점 상한 <b className="tabular text-fg">±{Number(stage.bonus_cap)}</b>점 (승인분만)</div>
@@ -449,7 +459,7 @@ export default function ResultsView(p: ResultsViewProps) {
       </ConfirmDialog>
 
       <ScoreEditDialog target={edit} criteria={criteria} onClose={() => setEdit(null)}
-        onSaved={() => { setEdit(null); setMsg({ tone: 'accent', text: '점수를 수정했습니다. 감사로그에 기록되었습니다.' }); router.refresh() }} />
+        onSaved={() => { setEdit(null); setMsg({ tone: 'accent', text: '점수를 수정했습니다. 감사로그에 기록되었습니다.' }); startRefresh(() => router.refresh()) }} />
 
       <ConfirmDialog open={pubOpen} title="결과를 공개할까요?" busy={busy} confirmLabel="결과 공개" onClose={() => setPubOpen(false)} onConfirm={publish}>
         <p>참가 기업이 결과 확인 화면에서 통과/탈락을 볼 수 있습니다.{stage.score_visible ? ' 점수도 공개됩니다.' : ' 점수는 비공개입니다.'} 이의신청 기간 {stage.appeal_days}일이 시작됩니다.</p>
