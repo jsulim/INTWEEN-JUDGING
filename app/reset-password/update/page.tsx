@@ -25,7 +25,7 @@ export default function UpdatePasswordPage() {
     <AuthFrame title="새 비밀번호 설정">
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert tone="danger">{error}</Alert>}
-        <Field label="새 비밀번호" hint="8자 이상, 영문·숫자 포함"><Input type="password" value={pw} onChange={e => setPw(e.target.value)} required /></Field>
+        <Field label="새 비밀번호" hint="8자 이상"><Input type="password" value={pw} onChange={e => setPw(e.target.value)} required /></Field>
         <Field label="비밀번호 확인"><Input type="password" value={pw2} onChange={e => setPw2(e.target.value)} required /></Field>
         <Button type="submit" size="lg" className="w-full">변경</Button>
       </form>

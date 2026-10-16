@@ -42,7 +42,7 @@ export default function ProfileForm({ profile, email }: { profile: Profile; emai
       </Card>
       <Card title="비밀번호 변경">
         <form onSubmit={changePw} className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[240px] flex-1"><Field label="새 비밀번호" hint="8자 이상, 영문·숫자 포함"><Input type="password" value={pw} onChange={e => setPw(e.target.value)} /></Field></div>
+          <div className="min-w-[240px] flex-1"><Field label="새 비밀번호" hint="8자 이상"><Input type="password" value={pw} onChange={e => setPw(e.target.value)} /></Field></div>
           <Button type="submit" variant="outline">변경</Button>
         </form>
       </Card>
