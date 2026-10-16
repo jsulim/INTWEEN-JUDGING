@@ -7,6 +7,7 @@ import { Alert, Badge, Button, Textarea, cn } from '@/components/ui'
 import type { Criterion } from '@/lib/types'
 import { Dialog } from './Dialog'
 import { missingItems } from './progress'
+import { EVAL_MISSING_EVENT, type EvalMissingDetail } from './EvalNav'
 
 // J-04 평가표 (J-06 현장 모드에서도 재사용)
 //  · 항목별 점수(배점 내, Q6) + 루브릭(4-1) + 항목별·종합 심사평 (+ 질의응답 메모)
@@ -251,6 +252,11 @@ export default function ScoringPanel(props: ScoringPanelProps) {
     criterion_id: c.id, score: validNum(vals[c.id]?.score ?? '', c.max_score), comment: vals[c.id]?.comment ?? null,
   })), [criteria, vals])
   const missing = missingItems(criteria, current, { required: !!props.overallRequired, comment: overall })
+  // 하단 '다음 기업' 버튼이 미입력 항목을 알 수 있게 알린다
+  const missingKey = missing.join('|')
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent<EvalMissingDetail>(EVAL_MISSING_EVENT, { detail: { assignmentId, missing: missingKey ? missingKey.split('|') : [] } }))
+  }, [assignmentId, missingKey])
   const total = current.reduce((a, s) => a + (s.score ?? 0), 0)
   const maxTotal = criteria.reduce((a, c) => a + c.max_score, 0)
   const readOnly = !!lock

@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Alert, Badge, buttonClass, cn } from '@/components/ui'
+import { Alert, Badge } from '@/components/ui'
 import { StageStatusBadge, DDayBadge } from '@/components/StatusBadges'
 import { EvalStateBadge } from '@/components/judge/EvalStateBadge'
 import PdfViewer, { type ViewerFile } from '@/components/judge/PdfViewer'
 import ScoringPanel from '@/components/judge/ScoringPanel'
+import EvalNav from '@/components/judge/EvalNav'
+import { missingItems } from '@/components/judge/progress'
 import { requireRole } from '@/lib/server/auth'
 import type { JudgeSubmissionRow } from '@/lib/types'
 import { loadJudgeStage, rowLock } from '@/app/j/_lib/data'
@@ -81,18 +83,14 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
       )}
 
       {/* 하단 이동: 이전 기업 / 다음 기업. 마지막 기업 다음은 최종 확인(제출 전 점수 검토) */}
-      <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
-        <NavLink href={prev && `${base}/c/${prev.company_id}`} label={prev ? `← 이전 기업 · ${prev.display_name}` : '← 이전 기업'} />
-        {next
-          ? <NavLink href={`${base}/c/${next.company_id}`} label={`다음 기업 · ${next.display_name} →`} primary />
-          : <NavLink href={d.evalSubmitted ? base : `${base}/submit`} label={d.evalSubmitted ? '기업 목록으로' : '최종 확인 →'} primary />}
-      </div>
+      <EvalNav
+        assignmentId={row.assignment_id}
+        initialMissing={missingItems(d.criteria, d.scores.get(row.assignment_id) ?? [],
+          { required: d.stage.overall_comment_required, comment: review?.overall_comment })}
+        enforce={!row.conflict && !lock}
+        prev={prev ? { href: `${base}/c/${prev.company_id}`, label: `← 이전 기업 · ${prev.display_name}` } : null}
+        next={next ? { href: `${base}/c/${next.company_id}`, label: `다음 기업 · ${next.display_name} →` }
+          : { href: d.evalSubmitted ? base : `${base}/submit`, label: d.evalSubmitted ? '기업 목록으로' : '최종 확인 →' }} />
     </div>
   )
-}
-
-function NavLink({ href, label, primary }: { href?: string | false; label: string; primary?: boolean }) {
-  const cls = cn(buttonClass(primary ? 'primary' : 'outline'), 'min-w-0 max-w-[48%]')
-  if (!href) return <span className={cn(cls, 'pointer-events-none opacity-40')}><span className="truncate">{label}</span></span>
-  return <Link href={href} className={cls}><span className="truncate">{label}</span></Link>
 }

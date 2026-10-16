@@ -23,3 +23,6 @@ body { @apply bg-bg text-fg antialiased; }
 @media print {
   body { background: white; }
 }
+
+/* 표 머리글 기본 왼쪽 정렬 (text-right·text-center 클래스가 있으면 그쪽이 우선) */
+th { text-align: left; }

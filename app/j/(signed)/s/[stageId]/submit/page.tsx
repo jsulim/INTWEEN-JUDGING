@@ -73,9 +73,11 @@ export default async function SubmitPage({ params }: { params: { stageId: string
                   <thead>
                     <tr>
                       <th>기업</th>
-                      {d.criteria.map(c => <th key={c.id} className="text-right">{c.name}<span className="tabular ml-1 font-normal">({fmtScore(c.max_score)})</span></th>)}
-                      <th className="text-right">합계<span className="tabular ml-1 font-normal">({fmtScore(d.criteria.reduce((a, c) => a + Number(c.max_score), 0))})</span></th>
-                      <th>종합 심사평</th>
+                      {d.criteria.map(c => (
+                        <th key={c.id} className="w-20 text-center">{c.name}<div className="tabular text-xs font-normal">{fmtScore(c.max_score)}점</div></th>
+                      ))}
+                      <th className="w-20 text-center">합계<div className="tabular text-xs font-normal">{fmtScore(d.criteria.reduce((a, c) => a + Number(c.max_score), 0))}점</div></th>
+                      <th className="min-w-[220px]">종합 심사평</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -83,10 +85,10 @@ export default async function SubmitPage({ params }: { params: { stageId: string
                       const sc = new Map((d.scores.get(r.assignment_id) ?? []).map(s => [s.criterion_id, s.score]))
                       return (
                         <tr key={r.company_id}>
-                          <td className="font-semibold"><Link href={`${base}/c/${r.company_id}`} className="hover:text-primary hover:underline">{r.display_name}</Link></td>
-                          {d.criteria.map(c => <td key={c.id} className="tabular text-right">{fmtScore(sc.get(c.id))}</td>)}
-                          <td className="tabular text-right font-bold">{fmtScore(r.total)}</td>
-                          <td className="max-w-[280px] text-sm text-muted"><span className="line-clamp-2">{d.reviews.get(r.assignment_id)?.overall_comment || '-'}</span></td>
+                          <td className="whitespace-nowrap font-semibold"><Link href={`${base}/c/${r.company_id}`} className="hover:text-primary hover:underline">{r.display_name}</Link></td>
+                          {d.criteria.map(c => <td key={c.id} className="tabular text-center">{fmtScore(sc.get(c.id))}</td>)}
+                          <td className="tabular text-center text-base font-bold text-primary">{fmtScore(r.total)}</td>
+                          <td className="whitespace-pre-wrap break-words text-sm text-muted">{d.reviews.get(r.assignment_id)?.overall_comment || '-'}</td>
                         </tr>
                       )
                     })}

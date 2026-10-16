@@ -110,7 +110,7 @@ export function PageHeader({ title, description, actions, back }: { title: React
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className={cn('overflow-x-auto rounded-lg border border-line bg-card', className)}>
-      <table className="w-full text-sm [&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-2.5 [&_th]:bg-bg [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-muted [&_th]:whitespace-nowrap">
+      <table className="w-full text-sm [&_td]:border-t [&_td]:border-line [&_td]:px-3 [&_td]:py-2.5 [&_th]:bg-bg [&_th]:px-3 [&_th]:py-2 [&_th]:font-semibold [&_th]:text-muted [&_th]:whitespace-nowrap">
         {children}
       </table>
     </div>
