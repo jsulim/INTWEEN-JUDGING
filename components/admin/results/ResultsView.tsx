@@ -1,5 +1,6 @@
 'use client'
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import CriteriaHead from '@/components/CriteriaHead'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { api } from '@/lib/api'
@@ -15,7 +16,7 @@ import CompanyScoreSheet from './CompanyScoreSheet'
 export interface ResultsViewProps {
   programId: string
   stage: Stage
-  criteria: { id: string; name: string; max_score: number; min_pass_score: number | null }[]
+  criteria: { id: string; name: string; max_score: number; min_pass_score: number | null; group_name?: string | null }[]
   results: CompanyResult[]
   companies: Record<string, { name: string; blind_code: string | null; result: EntryResult; in_next: boolean }>
   judges: { id: string; name: string; affiliation: string | null; is_chair: boolean }[]
@@ -355,14 +356,10 @@ export default function ResultsView(p: ResultsViewProps) {
       <Card title="항목별 평균">
         {criteria.length === 0 ? <p className="text-muted">평가항목이 없습니다.</p> : (
           <Table>
-            <thead>
-              <tr>
-                <th>기업</th>
-                {criteria.map(c => (
-                  <th key={c.id} className="text-right">{c.name}<div className="text-xs font-normal">배점 {fmtScore(c.max_score)}{c.min_pass_score != null && ` · 과락 <${fmtScore(c.min_pass_score)}`}</div></th>
-                ))}
-              </tr>
-            </thead>
+            <CriteriaHead criteria={criteria} align="text-right"
+              lead={n => <th rowSpan={n}>기업</th>}
+              cell={c => <th key={c.id} className="text-right">{c.name}<div className="text-xs font-normal">배점 {fmtScore(c.max_score)}{c.min_pass_score != null && ` · 과락 <${fmtScore(c.min_pass_score)}`}</div></th>}
+              tail={() => null} />
             <tbody>
               {results.map(r => (
                 <tr key={r.company_id}>

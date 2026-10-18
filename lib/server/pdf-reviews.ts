@@ -3,6 +3,7 @@ import { rgb } from 'pdf-lib'
 import { PdfWriter } from '@/lib/server/pdf'
 import { fmtDate, fmtScore } from '@/lib/format'
 import { companyLabel, type StageReport } from '@/lib/server/export'
+import { criterionLabel } from '@/components/judge/progress'
 
 const MUTED = rgb(0.45, 0.48, 0.46)
 
@@ -43,7 +44,7 @@ export async function buildReviewsPdf(r: StageReport) {
 
     w.table(
       ['항목', '배점', '평균'],
-      criteria.map(k => [k.name, fmtScore(Number(k.max_score)), fmtScore(x.criterion_avgs[k.id], 3)]),
+      criteria.map(k => [criterionLabel(k), fmtScore(Number(k.max_score)), fmtScore(x.criterion_avgs[k.id], 3)]),
       [4, 1, 1],
     )
 

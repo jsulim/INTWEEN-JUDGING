@@ -102,6 +102,7 @@ export interface Criterion {
   min_pass_score: number | null
   rubric: RubricBand[]
   tie_priority: number | null
+  group_name?: string | null // 대항목 (예: 사업성) — 세부 항목을 묶어 보여줌
 }
 
 export interface Company {
@@ -330,6 +331,8 @@ export interface JudgePayment {
   amount: number
   tax: number
   paid_at: string | null
+  id_card_path?: string | null
+  bank_copy_path?: string | null
 }
 
 export interface JudgePoolEntry {

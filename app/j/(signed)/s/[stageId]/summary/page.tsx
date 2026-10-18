@@ -4,6 +4,7 @@ import { Badge, Card, Empty, PageHeader, Table } from '@/components/ui'
 import { StageStatusBadge } from '@/components/StatusBadges'
 import { EvalStateBadge } from '@/components/judge/EvalStateBadge'
 import { requireRole } from '@/lib/server/auth'
+import CriteriaHead from '@/components/CriteriaHead'
 import { fmtDate, fmtScore } from '@/lib/format'
 import type { StageResult } from '@/lib/types'
 import { loadJudgeStage } from '@/app/j/_lib/data'
@@ -49,14 +50,10 @@ export default async function SummaryPage({ params }: { params: { stageId: strin
 
       {d.rows.length === 0 ? <Empty>배정된 기업이 없습니다.</Empty> : (
         <Table>
-          <thead>
-            <tr>
-              <th>기업</th>
-              {d.criteria.map(c => <th key={c.id} className="text-right">{c.name}<span className="tabular ml-1 font-normal">({fmtScore(c.max_score)})</span></th>)}
-              <th className="text-right">합계</th>
-              <th>상태</th>
-            </tr>
-          </thead>
+          <CriteriaHead criteria={d.criteria} align="text-right"
+            lead={n => <th rowSpan={n}>기업</th>}
+            cell={c => <th key={c.id} className="text-right">{c.name}<span className="tabular ml-1 font-normal">({fmtScore(c.max_score)})</span></th>}
+            tail={n => <><th rowSpan={n} className="text-right">합계</th><th rowSpan={n}>상태</th></>} />
           <tbody>
             {d.rows.map(r => {
               const sc = new Map((d.scores.get(r.assignment_id) ?? []).map(s => [s.criterion_id, s.score]))

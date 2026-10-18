@@ -20,6 +20,8 @@ export interface MyPayment {
     amount: number
     tax: number
     paid_at: string | null
+    has_id_card: boolean
+    has_bank_copy: boolean
   }
 }
 
@@ -57,6 +59,8 @@ export async function loadMyPayments(userId: string): Promise<MyPayment[]> {
         amount: p.amount,
         tax: p.tax,
         paid_at: p.paid_at,
+        has_id_card: !!p.id_card_path,
+        has_bank_copy: !!p.bank_copy_path,
       } : null,
     }
   })

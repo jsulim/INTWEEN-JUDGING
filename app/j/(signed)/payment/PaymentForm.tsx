@@ -3,14 +3,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Alert, Badge, Button, Card, Field, Input, Table } from '@/components/ui'
 import { api } from '@/lib/api'
+import { supabaseBrowser } from '@/lib/supabase/client'
 import { fmtDate } from '@/lib/format'
 import type { MyPayment } from '@/app/api/payments/me/load'
 
 const won = (n: number) => `${n.toLocaleString('ko-KR')}원`
 
 const CONSENT_TEXT = `[수당 지급을 위한 개인정보 수집·이용 동의 (별도 동의)]
-· 수집 항목: 은행명, 계좌번호, 예금주, 주민등록번호
-· 이용 목적: 심사 수당 지급 및 소득세 원천징수·지급명세서 제출
+· 수집 항목: 은행명, 계좌번호, 예금주, 주민등록번호, 신분증 사본, 통장 사본
+· 이용 목적: 심사 수당 지급 및 소득세 원천징수·지급명세서 제출, 지급 증빙
 · 근거: 소득세법 제145조, 제164조 등 (주민등록번호 처리 근거)
 · 보유 기간: 프로그램 종료 후 관계 법령에 따른 보존 기간까지, 이후 지체 없이 파기
 · 동의를 거부할 수 있으며, 거부 시 수당 지급이 제한될 수 있습니다.`
@@ -77,6 +78,14 @@ export default function PaymentForm({ item }: { item: MyPayment }) {
               placeholder={s?.rrn_masked ?? '000000-0000000'} required={!s?.rrn_masked} />
           </Field>
         </fieldset>
+        <div className="grid gap-2">
+          <div className="text-sm font-semibold">증빙 사본 <span className="font-normal text-muted">— 수당 지급 증빙용 (PDF·PNG·JPG, 10MB 이하)</span></div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DocUpload judgeId={item.judge_id} kind="id_card" label="신분증 사본" done={!!s?.has_id_card} disabled={!consent} />
+            <DocUpload judgeId={item.judge_id} kind="bank_copy" label="통장 사본" done={!!s?.has_bank_copy} disabled={!consent} />
+          </div>
+          <p className="text-xs text-muted">정산 담당자만 열람할 수 있습니다. 신분증은 주민등록번호 뒷자리를 가려서 올려도 됩니다.</p>
+        </div>
         {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         <div className="flex justify-end"><Button type="submit" disabled={busy || !consent}>{busy ? '저장 중…' : '저장'}</Button></div>
       </form>
@@ -101,5 +110,44 @@ export default function PaymentForm({ item }: { item: MyPayment }) {
         )}
       </div>
     </Card>
+  )
+}
+
+// 신분증·통장 사본 업로드 (비공개 저장 → 정산 권한자만 열람)
+function DocUpload({ judgeId, kind, label, done, disabled }: { judgeId: string; kind: 'id_card' | 'bank_copy'; label: string; done: boolean; disabled: boolean }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [ok, setOk] = useState(false)
+
+  async function upload(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    setErr(null)
+    try {
+      const t = await api<{ path: string; token: string }>('/api/payments/me/docs', { body: { action: 'ticket', judge_id: judgeId, kind, file_name: file.name, size: file.size } })
+      const { error } = await supabaseBrowser().storage.from('program-files').uploadToSignedUrl(t.path, t.token, file, { contentType: file.type || undefined })
+      if (error) throw new Error('파일을 올리지 못했습니다. 다시 시도해 주세요.')
+      await api('/api/payments/me/docs', { body: { action: 'attach', consent: true, judge_id: judgeId, kind, path: t.path } })
+      setOk(true)
+      router.refresh()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '올리지 못했습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <label className={`flex items-center justify-between gap-2 rounded-md border border-line px-3 py-2.5 text-sm ${disabled ? 'opacity-50' : 'cursor-pointer hover:bg-bg'}`}>
+      <span>
+        <span className="font-semibold">{label}</span>
+        <span className="ml-2">{done || ok ? <Badge tone="accent">등록됨</Badge> : <Badge tone="highlight">미등록</Badge>}</span>
+        {err && <span className="mt-1 block text-xs text-danger">{err}</span>}
+      </span>
+      <span className="shrink-0 text-xs font-semibold text-primary">{busy ? '올리는 중…' : done || ok ? '바꾸기' : '파일 선택'}</span>
+      <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" disabled={disabled || busy}
+        onChange={e => { void upload(e.target.files?.[0]); e.target.value = '' }} />
+    </label>
   )
 }

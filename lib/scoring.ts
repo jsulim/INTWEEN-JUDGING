@@ -209,14 +209,24 @@ export function computeStageResults(input: {
   })
 
   // 4) 순위: 최종 점수 내림차순 → 우선 항목 평균 → 그래도 같으면 공동 순위
-  const tieCriteria = criteria
-    .filter(c => c.tie_priority != null)
-    .sort((a, b) => a.tie_priority! - b.tie_priority!)
+  //    같은 우선순위 숫자를 준 항목(대항목의 세부 항목)은 평균을 합산해 한 번에 비교한다
+  const tieLevels = [...new Set(criteria.filter(c => c.tie_priority != null).map(c => c.tie_priority!))]
+    .sort((a, b) => a - b)
+    .map(p => criteria.filter(c => c.tie_priority === p).map(c => c.id))
+  const levelSum = (r: CompanyResult, ids: string[]) => {
+    let sum = 0
+    for (const id of ids) {
+      const v = r.criterion_avgs[id]
+      if (v == null) return -Infinity
+      sum += v
+    }
+    return sum
+  }
   const compare = (x: CompanyResult, y: CompanyResult) => {
     if (x.final! !== y.final!) return y.final! - x.final!
-    for (const c of tieCriteria) {
-      const dx = x.criterion_avgs[c.id] ?? -Infinity
-      const dy = y.criterion_avgs[c.id] ?? -Infinity
+    for (const ids of tieLevels) {
+      const dx = levelSum(x, ids)
+      const dy = levelSum(y, ids)
       if (dx !== dy) return dy - dx
     }
     return 0

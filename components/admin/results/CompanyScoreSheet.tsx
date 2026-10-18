@@ -3,8 +3,9 @@ import { forwardRef } from 'react'
 import { fmtScore } from '@/lib/format'
 import { belowPass, type CompanyResult } from '@/lib/scoring'
 import { Badge, Button, Card, Select, Table, cn } from '@/components/ui'
+import CriteriaHead from '@/components/CriteriaHead'
 
-type Criterion = { id: string; name: string; max_score: number }
+type Criterion = { id: string; name: string; max_score: number; group_name?: string | null }
 type Judge = { id: string; name: string; is_chair: boolean }
 type Asg = { id: string; judge_id: string; company_id: string; conflict: boolean }
 type Score = { assignment_id: string; criterion_id: string; score: number | null }
@@ -68,15 +69,10 @@ const CompanyScoreSheet = forwardRef<HTMLDivElement, {
 
               {/* 심사위원 × 항목 */}
               <Table>
-                <thead>
-                  <tr>
-                    <th>심사위원</th>
-                    {p.criteria.map(c => <th key={c.id} className="text-right">{c.name}<span className="tabular ml-1 font-normal">({fmtScore(c.max_score)})</span></th>)}
-                    <th className="text-right">합계</th>
-                    <th>제출</th>
-                    <th>종합 심사평</th>
-                  </tr>
-                </thead>
+                <CriteriaHead criteria={p.criteria} align="text-right"
+                  lead={n => <th rowSpan={n}>심사위원</th>}
+                  cell={c => <th key={c.id} className="text-right">{c.name}<span className="tabular ml-1 font-normal">({fmtScore(c.max_score)})</span></th>}
+                  tail={n => <><th rowSpan={n} className="text-right">합계</th><th rowSpan={n}>제출</th><th rowSpan={n}>종합 심사평</th></>} />
                 <tbody>
                   {rows.length === 0 && <tr><td colSpan={p.criteria.length + 4} className="text-center text-muted">배정된 심사위원이 없습니다.</td></tr>}
                   {rows.map(a => {

@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { fmtScore } from '@/lib/format'
@@ -307,12 +307,25 @@ export default function ScoringPanel(props: ScoringPanelProps) {
         {criteria.length === 0 && <Alert tone="highlight">평가항목이 아직 설정되지 않았습니다.</Alert>}
 
         {criteria.map((c, i) => {
+          // 대항목이 바뀌는 첫 항목 위에 대항목 머리(배점·소계)를 붙인다
+          const groupHead = c.group_name && criteria[i - 1]?.group_name !== c.group_name ? (() => {
+            const items = criteria.filter(x => x.group_name === c.group_name)
+            const sub = items.reduce((a, x) => a + (validNum(vals[x.id]?.score ?? '', x.max_score) ?? 0), 0)
+            return (
+              <div className={cn('flex items-baseline justify-between gap-2 border-b-2 border-primary/30 pb-1', i > 0 && 'mt-2')}>
+                <span className="text-lg font-black text-primary">{c.group_name}</span>
+                <span className="tabular text-sm text-muted">소계 <b className="text-fg">{fmtScore(sub)}</b> / {fmtScore(items.reduce((a, x) => a + x.max_score, 0))}점</span>
+              </div>
+            )
+          })() : null
           const v = vals[c.id] ?? { score: '', comment: '' }
           const n = toNum(v.score)
           const bands = [...(c.rubric ?? [])].sort((a, b) => b.max - a.max)
           const commentMissing = c.comment_required && !v.comment.trim()
           return (
-            <section key={c.id} className="rounded-lg border border-line bg-card">
+            <Fragment key={c.id}>
+            {groupHead}
+            <section className="rounded-lg border border-line bg-card">
               <div className="flex items-start justify-between gap-3 px-4 pt-3">
                 <div className="min-w-0">
                   <div className="font-bold"><span className="tabular mr-1 text-muted">{i + 1}.</span>{c.name}</div>
@@ -356,6 +369,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
                 {c.comment_required && <p className={cn('mt-1 text-xs', commentMissing ? 'text-[#8a5a00]' : 'text-muted')}>심사평 필수 항목</p>}
               </div>
             </section>
+            </Fragment>
           )
         })}
 

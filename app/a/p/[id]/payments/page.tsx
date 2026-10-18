@@ -24,6 +24,7 @@ export default async function PaymentsPage({ params }: { params: { id: string } 
       payment: p ? {
         id: p.id, bank_name: p.bank_name, holder: p.holder, has_account: !!p.bank_enc, has_rrn: !!p.rrn_enc,
         consent_at: p.consent_at, sessions: p.sessions, amount: p.amount, tax: p.tax, paid_at: p.paid_at,
+        has_id_card: !!p.id_card_path, has_bank_copy: !!p.bank_copy_path,
       } : null,
     }
   })

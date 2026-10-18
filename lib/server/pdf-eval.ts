@@ -1,5 +1,6 @@
 import 'server-only'
 import { PdfWriter } from '@/lib/server/pdf'
+import { criterionLabel } from '@/components/judge/progress'
 
 // 평가표 최종 제출 PDF (J-07, 4-1 '평가표 최종 제출·서명'): 기업 × 항목 점수표 + 심사평 + 심사위원 서명
 
@@ -34,7 +35,7 @@ export async function buildEvaluationPdf(p: {
   w.heading('점수표')
   const total = (r: EvalPdfRow) => p.criteria.reduce((a, c) => a + (r.scores[c.id] ?? 0), 0)
   w.table(
-    ['기업', ...p.criteria.map(c => `${c.name} (${fmt(c.max_score)})`), '합계'],
+    ['기업', ...p.criteria.map(c => `${criterionLabel(c)} (${fmt(c.max_score)})`), '합계'],
     p.rows.map(r => [r.name, ...p.criteria.map(c => fmt(r.scores[c.id])), fmt(total(r))]),
     [2.2, ...p.criteria.map(() => 1), 1],
   )
@@ -45,7 +46,7 @@ export async function buildEvaluationPdf(p: {
     w.text(`${r.name} · 합계 ${fmt(total(r))}점`, { bold: true, size: 10, gap: 2 })
     for (const c of p.criteria) {
       const cm = r.comments[c.id]
-      if (cm && cm.trim()) w.text(`[${c.name}] ${cm.trim()}`, { size: 9, gap: 1 })
+      if (cm && cm.trim()) w.text(`[${criterionLabel(c)}] ${cm.trim()}`, { size: 9, gap: 1 })
     }
     w.text(`[종합] ${r.overall?.trim() || '-'}`, { size: 9, gap: 8 })
   }

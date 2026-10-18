@@ -89,15 +89,16 @@ export const GET = handle(async (req: Request) => {
     const prefixed = [
       ...(await listAll(db, p.id)),
       ...(await Promise.all(judgeIds.map(j => listAll(db, `consents/${j}`)))).flat(),
+      ...(await Promise.all(judgeIds.map(j => listAll(db, `payments/${j}`)))).flat(),
       ...(await Promise.all(stageIds.map(s => listAll(db, `evaluations/${s}`)))).flat(),
     ]
     const signatureSet = new Set([...explicit.filter(Boolean)].filter(x => !x.startsWith(`${p.id}/`)))
-    for (const x of prefixed) if (x.startsWith('consents/') || x.startsWith('evaluations/')) signatureSet.add(x)
+    for (const x of prefixed) if (x.startsWith('consents/') || x.startsWith('evaluations/') || x.startsWith('payments/')) signatureSet.add(x)
     const submissionObjs = prefixed.filter(x => x.startsWith(`${p.id}/`))
 
     const disposed: Record<string, number> = {}
     disposed['제출 파일·첨부(Storage)'] = await removeObjects(db, submissionObjs)
-    disposed['서명본·증빙 파일(Storage: 동의서·평가표·가점 증빙·이의신청 첨부)'] = await removeObjects(db, [...signatureSet])
+    disposed['서명본·증빙 파일(Storage: 동의서·평가표·가점 증빙·이의신청 첨부·정산 증빙 사본)'] = await removeObjects(db, [...signatureSet])
 
     // ── DB 행
     if (entryIds.length) {

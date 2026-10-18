@@ -10,7 +10,10 @@ export const EVAL_STATE_LABEL: Record<EvalState, string> = {
   conflict: '제외(이해충돌)',
 }
 
-type C = Pick<Criterion, 'id' | 'name' | 'comment_required'>
+type C = Pick<Criterion, 'id' | 'name' | 'comment_required'> & { group_name?: string | null }
+
+/** 항목 표시 이름: 대항목이 있으면 '사업성 · 사업화 실현 가능성' */
+export const criterionLabel = (c: { name: string; group_name?: string | null }) => (c.group_name ? `${c.group_name} · ${c.name}` : c.name)
 type S = { criterion_id: string; score: number | string | null; comment: string | null }
 type R = { overall_comment: string | null; qna_memo?: string | null } | null | undefined
 
@@ -22,8 +25,8 @@ export function missingItems(criteria: C[], scores: S[], overall?: { required: b
   const out: string[] = []
   for (const c of criteria) {
     const s = by.get(c.id)
-    if (!s || s.score == null || s.score === '') out.push(`${c.name} 점수`)
-    else if (c.comment_required && !filled(s.comment)) out.push(`${c.name} 심사평`)
+    if (!s || s.score == null || s.score === '') out.push(`${criterionLabel(c)} 점수`)
+    else if (c.comment_required && !filled(s.comment)) out.push(`${criterionLabel(c)} 심사평`)
   }
   if (overall?.required && !filled(overall.comment)) out.push('종합 심사평')
   return out

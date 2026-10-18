@@ -7,6 +7,7 @@ import { missingItems } from '@/components/judge/progress'
 import { requireRole } from '@/lib/server/auth'
 import { fmtDate, fmtScore } from '@/lib/format'
 import { loadJudgeStage } from '@/app/j/_lib/data'
+import CriteriaHead from '@/components/CriteriaHead'
 import SubmitForm from './SubmitForm'
 
 export const dynamic = 'force-dynamic'
@@ -70,16 +71,13 @@ export default async function SubmitPage({ params }: { params: { stageId: string
               <Card title="평가 결과 최종 확인">
                 <p className="mb-3 text-sm text-muted">기업별 점수와 종합 심사평을 확인하세요. 고칠 곳이 있으면 기업명을 눌러 수정한 뒤 다시 오면 됩니다.</p>
                 <Table>
-                  <thead>
-                    <tr>
-                      <th>기업</th>
-                      {d.criteria.map(c => (
-                        <th key={c.id} className="w-20 text-center">{c.name}<div className="tabular text-xs font-normal">{fmtScore(c.max_score)}점</div></th>
-                      ))}
-                      <th className="w-20 text-center">합계<div className="tabular text-xs font-normal">{fmtScore(d.criteria.reduce((a, c) => a + Number(c.max_score), 0))}점</div></th>
-                      <th className="min-w-[220px]">종합 심사평</th>
-                    </tr>
-                  </thead>
+                  <CriteriaHead criteria={d.criteria}
+                    lead={n => <th rowSpan={n}>기업</th>}
+                    cell={c => <th key={c.id} className="w-20 whitespace-normal text-center">{c.name}<div className="tabular text-xs font-normal">{fmtScore(c.max_score)}점</div></th>}
+                    tail={n => <>
+                      <th rowSpan={n} className="w-20 text-center">합계<div className="tabular text-xs font-normal">{fmtScore(d.criteria.reduce((a, c) => a + Number(c.max_score), 0))}점</div></th>
+                      <th rowSpan={n} className="min-w-[220px]">종합 심사평</th>
+                    </>} />
                   <tbody>
                     {targets.map(r => {
                       const sc = new Map((d.scores.get(r.assignment_id) ?? []).map(s => [s.criterion_id, s.score]))

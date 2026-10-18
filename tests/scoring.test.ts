@@ -129,3 +129,21 @@ test('점수 편차 경고: 심사위원 간 20점 이상', () => {
   assert.equal(a.deviation, 25)
   assert.equal(a.deviation_alert, true)
 })
+
+test('대항목 동점 처리: 같은 우선순위 세부 항목은 평균 합으로 비교', () => {
+  const split: ScoringCriterion[] = [
+    { id: 'b1', name: '사업성 1', order_no: 1, max_score: 15, min_pass_score: null, tie_priority: 1 },
+    { id: 'b2', name: '사업성 2', order_no: 2, max_score: 15, min_pass_score: null, tie_priority: 1 },
+    { id: 'x', name: '기타', order_no: 3, max_score: 70, min_pass_score: null, tie_priority: null },
+  ]
+  const assignments = [{ id: 'a1', judge_id: 'j1', company_id: 'A', conflict: false }, { id: 'a2', judge_id: 'j1', company_id: 'B', conflict: false }]
+  const scores = [
+    // A: 사업성 15+5=20, 총 80 / B: 사업성 10+12=22, 총 80 → 첫 세부 항목은 A가 높지만 대항목 합은 B가 높다
+    { assignment_id: 'a1', criterion_id: 'b1', score: 15 }, { assignment_id: 'a1', criterion_id: 'b2', score: 5 }, { assignment_id: 'a1', criterion_id: 'x', score: 60 },
+    { assignment_id: 'a2', criterion_id: 'b1', score: 10 }, { assignment_id: 'a2', criterion_id: 'b2', score: 12 }, { assignment_id: 'a2', criterion_id: 'x', score: 58 },
+  ]
+  const r = computeStageResults({ companyIds: ['A', 'B'], criteria: split, assignments, scores, options: opts })
+  assert.equal(r[0].company_id, 'B')
+  assert.equal(r[0].rank, 1)
+  assert.equal(r[1].rank, 2)
+})

@@ -16,6 +16,7 @@ export interface PaymentRow {
   payment: {
     id: string; bank_name: string | null; holder: string | null; has_account: boolean; has_rrn: boolean
     consent_at: string | null; sessions: number; amount: number; tax: number; paid_at: string | null
+    has_id_card: boolean; has_bank_copy: boolean
   } | null
 }
 
@@ -89,6 +90,20 @@ export default function PaymentsManager({ programId, perSession, canPay, rows }:
     }
   }
 
+  // 신분증·통장 사본: 새 탭에서 10분짜리 링크로 연다 (열람 기록 남음)
+  async function openDoc(r: PaymentRow, kind: 'id_card' | 'bank_copy') {
+    const w = window.open('', '_blank')
+    try {
+      const d = await api<{ url: string }>(`/api/payments/${r.payment!.id}/doc`, { body: { kind } })
+      if (w) w.location.href = d.url
+      else window.location.href = d.url
+      setMsg({ tone: 'highlight', text: `${r.name} ${kind === 'id_card' ? '신분증' : '통장'} 사본 열람 — 열람 기록이 감사로그에 남았습니다.` })
+    } catch (e) {
+      w?.close()
+      setMsg({ tone: 'danger', text: e instanceof Error ? e.message : '열지 못했습니다.' })
+    }
+  }
+
   const withPay = rows.filter(r => r.payment)
   const total = withPay.reduce((a, r) => ({ amount: a.amount + r.payment!.amount, tax: a.tax + r.payment!.tax, paid: a.paid + (r.payment!.paid_at ? 1 : 0) }), { amount: 0, tax: 0, paid: 0 })
 
@@ -121,7 +136,7 @@ export default function PaymentsManager({ programId, perSession, canPay, rows }:
       <Table>
         <thead>
           <tr>
-            <th>심사위원</th><th>계좌</th><th>주민등록번호</th><th>동의</th>
+            <th>심사위원</th><th>계좌</th><th>주민등록번호</th><th>증빙 사본</th><th>동의</th>
             <th className="text-right">횟수</th><th className="text-right">지급액</th><th className="text-right">원천징수</th><th className="text-right">실지급</th>
             <th>지급</th><th />
           </tr>
@@ -133,7 +148,7 @@ export default function PaymentsManager({ programId, perSession, canPay, rows }:
               return (
                 <tr key={r.judge_id} className="text-muted">
                   <td><div className="font-semibold text-fg">{r.name}</div><div className="text-xs">{r.affiliation}</div></td>
-                  <td colSpan={9}>지급 정보 미등록 — 심사위원이 &lsquo;수당 지급 정보&rsquo;에서 입력해야 합니다.</td>
+                  <td colSpan={10}>지급 정보 미등록 — 심사위원이 &lsquo;수당 지급 정보&rsquo;에서 입력해야 합니다.</td>
                 </tr>
               )
             }
@@ -149,6 +164,15 @@ export default function PaymentsManager({ programId, perSession, canPay, rows }:
                   <div className="tabular text-xs">{p.has_account ? (rv ? <b>{rv.account}</b> : MASK_ACC) : <span className="text-muted">미입력</span>}</div>
                 </td>
                 <td className="tabular whitespace-nowrap text-sm">{p.has_rrn ? (rv ? <b>{rv.rrn}</b> : MASK_RRN) : <span className="text-muted">미입력</span>}</td>
+                <td className="whitespace-nowrap text-xs">
+                  {([['id_card', '신분증', p.has_id_card], ['bank_copy', '통장', p.has_bank_copy]] as const).map(([k, l, has]) => (
+                    <div key={k}>
+                      {!has ? <span className="text-muted">{l} 미등록</span>
+                        : canPay ? <button type="button" className="font-semibold text-primary hover:underline" onClick={() => openDoc(r, k)}>{l} 보기</button>
+                        : <span>{l} 등록됨</span>}
+                    </div>
+                  ))}
+                </td>
                 <td>{p.consent_at ? <Badge tone="accent">동의</Badge> : <Badge tone="highlight">미동의</Badge>}</td>
                 <td className="text-right">
                   {canPay && !p.paid_at

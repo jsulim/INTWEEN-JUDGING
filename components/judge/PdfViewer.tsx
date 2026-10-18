@@ -13,9 +13,11 @@ export interface ViewerFile {
   file_name: string
   version: number
   viewable: boolean
+  /** 탭 이름 (단계 제출 항목명). 없으면 file_type 기본 이름 */
+  label?: string
 }
 
-const FILE_LABEL: Record<string, string> = { plan: '사업계획서', deck: '발표자료', etc: '기타' }
+const FILE_LABEL: Record<string, string> = { plan: '사업계획서', deck: '발표자료', plan_before: '사업계획서(전)', plan_after: '사업계획서(후)', etc: '기타' }
 
 // 구형 Safari 등 Promise.withResolvers 미지원 브라우저 보완 (pdfjs v4)
 function polyfill() {
@@ -46,7 +48,8 @@ function esc(s: string) {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 }
 
-function useWatermark(name: string) {
+// 워터마크: 첫 줄 대회·기업명(title), 둘째 줄 열람자·현재 시각 (유출 시 추적용)
+function useWatermark(name: string, title?: string) {
   const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
     setNow(new Date())
@@ -56,15 +59,21 @@ function useWatermark(name: string) {
   return useMemo(() => {
     if (!now || !name) return '' // 이름이 없으면 워터마크 없음
     const ts = now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    const text = esc(`${name} · ${ts}`)
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="380" height="240"><text x="190" y="120" text-anchor="middle" dominant-baseline="middle" transform="rotate(-28 190 120)" font-family="Pretendard, sans-serif" font-size="15" font-weight="600" fill="rgba(31,42,37,0.13)">${text}</text></svg>`
+    const sub = esc(`${name} · ${ts}`)
+    const body = title
+      ? `<text x="210" y="122" text-anchor="middle" font-family="Pretendard, sans-serif" font-size="17" font-weight="700" fill="rgba(31,42,37,0.15)">${esc(title)}</text>`
+        + `<text x="210" y="146" text-anchor="middle" font-family="Pretendard, sans-serif" font-size="12" font-weight="600" fill="rgba(31,42,37,0.12)">${sub}</text>`
+      : `<text x="210" y="134" text-anchor="middle" dominant-baseline="middle" font-family="Pretendard, sans-serif" font-size="15" font-weight="600" fill="rgba(31,42,37,0.13)">${sub}</text>`
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="268"><g transform="rotate(-28 210 134)">${body}</g></svg>`
     return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`
-  }, [name, now])
+  }, [name, title, now])
 }
 
-export default function PdfViewer({ files, watermarkName, className, resolveUrl, emptyText = '제출된 자료가 없습니다.' }: {
+export default function PdfViewer({ files, watermarkName, watermarkTitle, className, resolveUrl, emptyText = '제출된 자료가 없습니다.' }: {
   files: ViewerFile[]
   watermarkName: string
+  /** 워터마크 첫 줄 (예: '2026 울진군 창업아이디어톤 · 팀명') */
+  watermarkTitle?: string
   className?: string
   /** 열람 URL 발급 방식 (기본: 제출 자료 /api/files/view-url). 심사위원 풀 공유 화면 등에서 바꿔 쓴다 */
   resolveUrl?: (f: ViewerFile) => Promise<string>
@@ -79,7 +88,7 @@ export default function PdfViewer({ files, watermarkName, className, resolveUrl,
   const [width, setWidth] = useState(0)
   const [reloadKey, setReloadKey] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const wm = useWatermark(watermarkName)
+  const wm = useWatermark(watermarkName, watermarkTitle)
 
   // 컨테이너 너비 추적 → 페이지를 너비에 맞춰 렌더
   useEffect(() => {
@@ -145,7 +154,7 @@ export default function PdfViewer({ files, watermarkName, className, resolveUrl,
             <button key={f.submission_id} type="button" onClick={() => setActive(f.submission_id)} title={f.file_name}
               className={cn('max-w-[16rem] truncate rounded-md px-3 py-1.5 text-sm font-semibold',
                 f.submission_id === active ? 'bg-primary text-primary-fg' : 'text-muted hover:bg-fg/5')}>
-              {FILE_LABEL[f.file_type] ?? f.file_type}
+              {f.label || (FILE_LABEL[f.file_type] ?? f.file_type)}
               {f.version > 0 && <span className="ml-1 font-normal opacity-80">v{f.version}</span>}
             </button>
           ))}

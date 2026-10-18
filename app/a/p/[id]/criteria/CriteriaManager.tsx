@@ -8,11 +8,12 @@ import { fmtScore } from '@/lib/format'
 import type { Criterion, RubricBand, Stage } from '@/lib/types'
 
 type Draft = {
-  name: string; description: string; max_score: string; comment_required: boolean
+  group_name: string; name: string; description: string; max_score: string; comment_required: boolean
   min_pass_score: string; tie_priority: string; rubric: { min: string; max: string; label: string }[]
 }
 
 const toDraft = (c?: Criterion): Draft => ({
+  group_name: c?.group_name ?? '',
   name: c?.name ?? '',
   description: c?.description ?? '',
   max_score: c ? String(Number(c.max_score)) : '',
@@ -37,6 +38,7 @@ function validate(d: Draft): string | null {
 }
 
 const toRow = (d: Draft) => ({
+  group_name: d.group_name.trim() || null,
   name: d.name.trim(),
   description: d.description.trim() || null,
   max_score: num(d.max_score)!,
@@ -85,7 +87,10 @@ function CriterionForm({ draft, setDraft, disabled }: { draft: Draft; setDraft: 
   const max = num(draft.max_score)
   return (
     <div className="grid gap-3">
-      <div className="grid gap-3 md:grid-cols-[2fr_110px_150px_120px]">
+      <div className="grid gap-3 md:grid-cols-[140px_2fr_110px_150px_120px]">
+        <Field label="대항목" hint="같은 이름끼리 묶어 표시">
+          <Input value={draft.group_name} disabled={disabled} onChange={e => setDraft({ ...draft, group_name: e.target.value })} placeholder="예: 사업성" />
+        </Field>
         <Field label="항목명" required><Input value={draft.name} disabled={disabled} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="예: 기술성" /></Field>
         <Field label="배점" required><Input type="number" min={0.5} step={0.5} value={draft.max_score} disabled={disabled} onChange={e => setDraft({ ...draft, max_score: e.target.value })} /></Field>
         <Field label="과락 기준 (최저점)" hint={max ? (
@@ -94,7 +99,7 @@ function CriterionForm({ draft, setDraft, disabled }: { draft: Draft; setDraft: 
         ) : '비우면 과락 없음'}>
           <Input type="number" min={0} step={0.5} value={draft.min_pass_score} disabled={disabled} onChange={e => setDraft({ ...draft, min_pass_score: e.target.value })} placeholder="없음" />
         </Field>
-        <Field label="동점 우선순위" hint="1이 최우선">
+        <Field label="동점 우선순위" hint="1이 최우선 · 같은 숫자는 합산 비교">
           <Input type="number" min={1} value={draft.tie_priority} disabled={disabled} onChange={e => setDraft({ ...draft, tie_priority: e.target.value })} placeholder="-" />
         </Field>
       </div>
@@ -145,6 +150,7 @@ function CriterionRow({ c, index, total, stage, scoreCount, onMove }:
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="tabular text-sm text-muted">{index + 1}</span>
+                {c.group_name && <Badge tone="primary">{c.group_name}</Badge>}
                 <span className="font-semibold">{c.name}</span>
                 <span className="tabular font-bold text-primary">{fmtScore(Number(c.max_score))}점</span>
                 {c.min_pass_score != null && <Badge tone="danger">과락 {fmtScore(Number(c.min_pass_score))}점 미만</Badge>}
@@ -182,6 +188,13 @@ function CriterionRow({ c, index, total, stage, scoreCount, onMove }:
   )
 }
 
+// 대항목별 배점 합계 (예: 적정성 20 · 연관성 30)
+function groupSummary(criteria: Criterion[]) {
+  const sums = new Map<string, number>()
+  for (const c of criteria) if (c.group_name) sums.set(c.group_name, (sums.get(c.group_name) ?? 0) + Number(c.max_score))
+  return [...sums].map(([g, n]) => `${g} ${fmtScore(n)}`).join(' · ')
+}
+
 export default function CriteriaManager({ stage, criteria, scoreCount, otherStages }:
   { stage: Stage; criteria: Criterion[]; scoreCount: number; otherStages: { id: string; name: string }[] }) {
   const { busy, error, notice, run } = useRun()
@@ -213,7 +226,7 @@ export default function CriteriaManager({ stage, criteria, scoreCount, otherStag
       const start = criteria.at(-1)?.order_no ?? 0
       must(await sb.from('criteria').insert(src.map((c, i) => ({
         stage_id: stage.id, order_no: start + i + 1, name: c.name, description: c.description, max_score: c.max_score,
-        comment_required: c.comment_required, min_pass_score: c.min_pass_score, rubric: c.rubric, tie_priority: c.tie_priority,
+        comment_required: c.comment_required, min_pass_score: c.min_pass_score, rubric: c.rubric, tie_priority: c.tie_priority, group_name: c.group_name ?? null,
       })), { defaultToNull: false }))
     }, { success: '복사했습니다.' })
   }
@@ -224,6 +237,7 @@ export default function CriteriaManager({ stage, criteria, scoreCount, otherStag
     <Card title={<span className="flex items-center gap-3">평가항목
       <span className="tabular text-sm font-normal">합계 <b className={total === 100 ? 'text-accent' : 'text-[#8a5a00]'}>{fmtScore(total)}</b>점</span>
       {criteria.length > 0 && total !== 100 && <Badge tone="highlight">권장 100점</Badge>}
+      {groupSummary(criteria) && <span className="text-sm font-normal text-muted">{groupSummary(criteria)}</span>}
     </span>}
       actions={!locked && !adding && <Button size="sm" variant="secondary" onClick={() => setAdding(true)}>항목 추가</Button>}>
       <Feedback error={error} notice={notice} />

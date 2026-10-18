@@ -8,6 +8,7 @@ import { downloadBytes } from '@/lib/server/storage'
 import { sha256 } from '@/lib/server/crypto'
 import { fmtDate } from '@/lib/format'
 import type { Company, Consent, ConsentTemplate, EvaluationSubmission, Judge, Program, Review, StageResult } from '@/lib/types'
+import { criterionLabel } from '@/components/judge/progress'
 
 // A-08 결과 화면·/lock·A-09 내보내기·증빙 패키지 공용 로더·빌더.
 // 숫자는 모두 loadStageResults() 에서 나온다(Q10). 확정(locked/published) 단계는 그 결과를 저장한 stage_results 스냅샷을 쓴다.
@@ -190,7 +191,7 @@ export async function buildResultsWorkbook(r: StageReport) {
     const notes: string[] = []
     if (x.in_progress) notes.push('집계 중')
     if (x.tied) notes.push('공동 순위')
-    if (x.cutoff) notes.push('과락: ' + x.cutoff_criteria.map(id => criteria.find(k => k.id === id)?.name ?? id).join(', '))
+    if (x.cutoff) notes.push('과락: ' + x.cutoff_criteria.map(id => (() => { const k = criteria.find(k => k.id === id); return k ? criterionLabel(k) : id })()).join(', '))
     if (x.bonus_pending) notes.push(`미승인 가점 ${x.bonus_pending}(0점 처리)`)
     const row = ws.addRow({
       rank: x.rank ?? '-', code: c?.blind_code ?? '', name: companyLabel(c),
@@ -233,7 +234,7 @@ export async function buildResultsWorkbook(r: StageReport) {
   wc.columns = [
     { header: '순위', key: 'rank', width: 7 },
     { header: '기업명', key: 'name', width: 28 },
-    ...criteria.map(k => ({ header: `${k.name} (${Number(k.max_score)})`, key: k.id, width: 14 })),
+    ...criteria.map(k => ({ header: `${criterionLabel(k)} (${Number(k.max_score)})`, key: k.id, width: 14 })),
     { header: '원점수', key: 'raw', width: 10 },
   ]
   styleHeader(wc)
@@ -267,7 +268,7 @@ export async function buildResultsWorkbook(r: StageReport) {
       for (const k of criteria) {
         const s = r.scores.find(s => s.assignment_id === a.id && s.criterion_id === k.id)
         if (!s) continue
-        wr.addRow({ company: name, judge: judgeName.get(a.judge_id) ?? '', criterion: k.name, score: s.score == null ? null : Number(s.score), comment: s.comment ?? '' })
+        wr.addRow({ company: name, judge: judgeName.get(a.judge_id) ?? '', criterion: criterionLabel(k), score: s.score == null ? null : Number(s.score), comment: s.comment ?? '' })
       }
       const rv = reviewOf.get(a.id)
       if (rv?.overall_comment) wr.addRow({ company: name, judge: judgeName.get(a.judge_id) ?? '', criterion: '종합 의견', comment: rv.overall_comment })

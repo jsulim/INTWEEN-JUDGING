@@ -23,6 +23,9 @@ type Draft = {
 const PRESET_FILES: RequiredFile[] = [
   { type: 'plan', label: '사업계획서', accept: ['pdf'], required: true },
   { type: 'deck', label: '발표자료', accept: ['pdf', 'pptx'], required: true },
+  // 발표심사에서 서류심사 때 낸 최초본과 멘토링 이후 고도화본을 함께 볼 때
+  { type: 'plan_before', label: '사업계획서(전)', accept: ['pdf'], required: false },
+  { type: 'plan_after', label: '사업계획서(후)', accept: ['pdf'], required: false },
 ]
 
 function toDraft(s: Stage | null, nextOrder: number): Draft {
@@ -81,7 +84,7 @@ function FilesEditor({ files, onChange, disabled }: { files: RequiredFile[]; onC
     <div className="grid gap-2">
       {files.length === 0 && <p className="text-sm text-muted">제출 파일 없음 (신청서만 받거나 발표만 진행하는 단계)</p>}
       {files.map((f, i) => (
-        <div key={i} className="grid items-center gap-2 rounded-md border border-line p-2 sm:grid-cols-[110px_1fr_auto_auto_auto]">
+        <div key={i} className="grid items-center gap-2 rounded-md border border-line p-2 sm:grid-cols-[110px_1fr_auto_auto_auto_auto]">
           <Input className="h-9 text-sm" value={f.type} disabled={disabled} onChange={e => set(i, { type: e.target.value.toLowerCase() })} placeholder="코드 (plan)" aria-label="파일 코드" />
           <Input className="h-9 text-sm" value={f.label} disabled={disabled} onChange={e => set(i, { label: e.target.value })} placeholder="표시 이름 (사업계획서)" aria-label="표시 이름" />
           <div className="flex gap-3 text-sm">
@@ -92,6 +95,9 @@ function FilesEditor({ files, onChange, disabled }: { files: RequiredFile[]; onC
             ))}
           </div>
           <label className="flex items-center gap-1 text-sm"><input type="checkbox" disabled={disabled} checked={f.required} onChange={e => set(i, { required: e.target.checked })} />필수</label>
+          {/* 순서 = 심사위원 자료 탭 순서 (첫 번째가 먼저 열린다) */}
+          <Button type="button" size="sm" variant="ghost" disabled={disabled || i === 0} aria-label="위로" title="위로 (심사위원 화면 탭 순서)"
+            onClick={() => onChange(files.map((x, k) => (k === i - 1 ? files[i] : k === i ? files[i - 1] : x)))}>▲</Button>
           <Button type="button" size="sm" variant="ghost" className="text-danger" disabled={disabled} onClick={() => onChange(files.filter((_, k) => k !== i))}>삭제</Button>
         </div>
       ))}

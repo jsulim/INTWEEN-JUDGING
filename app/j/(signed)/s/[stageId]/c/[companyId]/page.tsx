@@ -13,7 +13,6 @@ import { loadJudgeStage, rowLock } from '@/app/j/_lib/data'
 
 export const dynamic = 'force-dynamic'
 
-const FILE_ORDER: Record<string, number> = { plan: 0, deck: 1 }
 
 // J-04 자료 열람 + 평가: 데스크톱 좌 65% 뷰어 / 우 35% 평가표, 태블릿 이하 상하 배치 (11장)
 export default async function EvaluatePage({ params }: { params: { stageId: string; companyId: string } }) {
@@ -30,9 +29,14 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
   const { data: subs } = row.conflict
     ? { data: [] }
     : await supabase.from('v_judge_submissions').select('*').eq('stage_id', d.stage.id).eq('company_id', row.company_id)
+  // 탭 순서·이름은 단계 제출 항목 설정을 따른다 (예: 발표자료 → 사업계획서(전) → 사업계획서(후)).
+  // 설정에 없는 파일은 발표자료 → 사업계획서 순으로 뒤에 붙인다
+  const slots = d.stage.required_files ?? []
+  const order = (t: string) => { const i = slots.findIndex(f => f.type === t); return i >= 0 ? i : 100 + (t === 'deck' ? 0 : t === 'plan' ? 1 : 2) }
   const files: ViewerFile[] = ((subs ?? []) as JudgeSubmissionRow[])
-    .sort((a, b) => (FILE_ORDER[a.file_type] ?? 9) - (FILE_ORDER[b.file_type] ?? 9) || a.file_type.localeCompare(b.file_type))
-    .map(s => ({ submission_id: s.submission_id, file_type: s.file_type, file_name: s.file_name, version: s.version, viewable: s.viewable }))
+    .sort((a, b) => order(a.file_type) - order(b.file_type) || a.file_type.localeCompare(b.file_type))
+    .map(s => ({ submission_id: s.submission_id, file_type: s.file_type, file_name: s.file_name, version: s.version, viewable: s.viewable,
+      label: slots.find(f => f.type === s.file_type)?.label }))
 
   // 이전/다음 (이해충돌 제외 기업은 건너뜀)
   const navigable = d.rows.filter(r => !r.conflict || r.company_id === row.company_id)
@@ -64,6 +68,7 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
           <PdfViewer key={row.company_id} files={files} watermarkName={profile.name || user.email || ''}
+            watermarkTitle={`${d.program.title} · ${row.display_name}`}
             className="h-[70vh] lg:h-[calc(100vh-15rem)]" />
           <div className="overflow-hidden rounded-lg border border-line bg-bg lg:h-[calc(100vh-15rem)] lg:overflow-y-auto">
             <ScoringPanel

@@ -1,4 +1,4 @@
-import { Empty, PageHeader } from '@/components/ui'
+import { Empty, LinkButton, PageHeader } from '@/components/ui'
 import { StageTabs } from '@/components/admin/results/ui'
 import ResultsView, { type ResultsViewProps } from '@/components/admin/results/ResultsView'
 import { requireRole } from '@/lib/server/auth'
@@ -35,7 +35,7 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
   const props: ResultsViewProps = {
     programId: params.id,
     stage: report.stage,
-    criteria: report.criteria.map(c => ({ id: c.id, name: c.name, max_score: Number(c.max_score), min_pass_score: c.min_pass_score == null ? null : Number(c.min_pass_score) })),
+    criteria: report.criteria.map(c => ({ id: c.id, name: c.name, max_score: Number(c.max_score), min_pass_score: c.min_pass_score == null ? null : Number(c.min_pass_score), group_name: c.group_name ?? null })),
     results: report.results,
     companies: Object.fromEntries([...report.companies.entries()].map(([id, c]) => [id, {
       name: c.name, blind_code: c.blind_code, result: entryOf.get(id)?.result ?? 'pending', in_next: nextEntryIds.has(id),
@@ -57,7 +57,11 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
 
   return (
     <>
-      <PageHeader title="평가 결과" description="기업×심사위원 점수, 항목별 평균, 최종 순위. 대시보드·확정·내보내기와 같은 산정 결과입니다." />
+      <PageHeader title="평가 결과" description="기업×심사위원 점수, 항목별 평균, 최종 순위. 대시보드·확정·내보내기와 같은 산정 결과입니다."
+        actions={<>
+          <LinkButton href={`/a/print/${current.id}?mode=sign`} variant="secondary">서명용 총괄표 출력</LinkButton>
+          <LinkButton href={`/a/print/${current.id}?mode=detail`} variant="outline">상세 채점표 출력</LinkButton>
+        </>} />
       <StageTabs stages={stages} current={current.id} base={base} />
       <ResultsView key={current.id} {...props} />
     </>
