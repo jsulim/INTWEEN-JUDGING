@@ -98,8 +98,19 @@ export default async function ConsentPage() {
                           <span className="text-muted">이해충돌 <span className="text-fg">{c.conflict_declared ? '이해관계 있음' : '이해관계 없음'}</span></span>
                         )}
                         <span className="tabular text-xs text-muted" title="SHA-256">해시 {c.doc_hash.slice(0, 16)}…</span>
-                        <SignedPdfLink path={c.signed_pdf_path} kind="consent" />
+                        <SignedPdfLink path={c.signed_pdf_path} kind="consent">서명본 PDF 보기 (서명 포함)</SignedPdfLink>
                       </div>
+                      {c.conflict_declared && c.conflict_note && (
+                        <p className="mt-2 text-sm text-muted">신고 내용 <span className="whitespace-pre-wrap text-fg">{c.conflict_note}</span></p>
+                      )}
+                      <details className="group mt-3">
+                        <summary className="cursor-pointer select-none text-sm font-semibold text-primary">
+                          <span className="group-open:hidden">동의서 내용 보기</span><span className="hidden group-open:inline">동의서 내용 접기</span>
+                        </summary>
+                        <div className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-line bg-bg px-4 py-3 text-sm leading-relaxed">
+                          {t.body}
+                        </div>
+                      </details>
                     </Card>
                   )
                 }
