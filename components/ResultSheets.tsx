@@ -41,6 +41,9 @@ export function sheetDate(r: StageReport) {
   return day.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric' })
 }
 
+// 서명란 날짜: 출력(화면을 연) 날
+const todayKst = () => new Date().toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric' })
+
 export function SheetTitle({ r, subtitle }: { r: StageReport; subtitle: string }) {
   const maxTotal = r.criteria.reduce((a, c) => a + Number(c.max_score), 0)
   const passScore = r.stage.pass_score == null ? null : Number(r.stage.pass_score)
@@ -104,7 +107,7 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
       {signature && (
         <div className="mt-8" style={{ breakInside: 'avoid' }}>
           <p className="text-center">위와 같이 심사 결과를 확인합니다.</p>
-          <p className="mt-2 text-center">{sheetDate(r)}</p>
+          <p className="mt-2 text-center">{todayKst()}</p>
           <table className="mt-5">
             <thead>
               <tr><th style={{ width: '16%' }}>구분</th><th style={{ width: '30%' }}>소속</th><th style={{ width: '22%' }}>성명</th><th>서명</th></tr>
