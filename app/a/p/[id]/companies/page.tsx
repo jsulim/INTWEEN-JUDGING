@@ -34,6 +34,11 @@ export default async function CompaniesPage({ params }: { params: { id: string }
   const list = (companies ?? []) as Company[]
   const ents = (entries ?? []) as StageEntry[]
   const files = await currentFiles(supabase, ents.map(e => e.id))
+  // 칸별로 무엇이 올라갔는지 (파일명·버전·열람 경로)
+  const { data: subRows } = ents.length
+    ? await supabase.from('submissions').select('entry_id, file_type, file_name, version, storage_path, pdf_path, created_at')
+      .eq('is_current', true).in('entry_id', ents.map(e => e.id))
+    : { data: [] }
   const invites = await inviteStates(list.map(c => c.owner_user_id).filter(Boolean) as string[])
 
   const rows: CompanyView[] = list.map(c => ({
@@ -44,7 +49,11 @@ export default async function CompaniesPage({ params }: { params: { id: string }
       if (!e) return [s.id, null]
       const req = requiredTypes(s)
       const have = files.get(e.id) ?? new Set<string>()
-      return [s.id, { entry_id: e.id, eligibility: e.eligibility, result: e.result, done: req.filter(t => have.has(t)).length, required: req.length, files: have.size }]
+      return [s.id, { entry_id: e.id, eligibility: e.eligibility, result: e.result, done: req.filter(t => have.has(t)).length, required: req.length, files: have.size,
+        uploaded: (subRows ?? []).filter(x => x.entry_id === e.id).map(x => ({
+          type: x.file_type as string, name: x.file_name as string, version: x.version as number, at: x.created_at as string,
+          path: (x.pdf_path as string | null) ?? (x.storage_path as string),
+        })) }]
     })),
   }))
 

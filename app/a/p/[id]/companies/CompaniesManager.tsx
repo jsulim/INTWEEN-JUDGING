@@ -10,7 +10,8 @@ import { BUCKET_NAME, MAX_UPLOAD_BYTES, SIZE_ERROR } from '@/components/company/
 import type { Company, Eligibility, EntryResult, Stage } from '@/lib/types'
 
 export type InviteState = 'none' | 'invited' | 'joined'
-export type StageCell = { entry_id: string; eligibility: Eligibility; result: EntryResult; done: number; required: number; files: number } | null
+export type Uploaded = { type: string; name: string; version: number; at: string; path: string }
+export type StageCell = { entry_id: string; eligibility: Eligibility; result: EntryResult; done: number; required: number; files: number; uploaded: Uploaded[] } | null
 export type CompanyView = Company & { invite: InviteState; stages: Record<string, StageCell> }
 
 type BulkResult = { row: number; name: string; email: string; status: 'invited' | 'created' | 'exists' | 'error'; message: string }
@@ -37,7 +38,7 @@ function slotForName(slots: Stage['required_files'], name: string) {
 
 /** 운영팀 대리 업로드: 참가팀이 메일로 보낸 자료를 검수 후 대신 올린다 (버전 보관, 접수 기간 무관)
  *  칸을 눌러 고르거나, 칸에 파일을 끌어다 놓는다. 여러 파일을 상자에 한꺼번에 놓으면 파일명으로 칸을 찾아 올린다. */
-export function AdminUpload({ stage, entryId, companyName }: { stage: Stage; entryId: string; companyName: string }) {
+export function AdminUpload({ stage, entryId, companyName, uploaded = [] }: { stage: Stage; entryId: string; companyName: string; uploaded?: Uploaded[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -120,7 +121,9 @@ export function AdminUpload({ stage, entryId, companyName }: { stage: Stage; ent
             <label key={f.type} {...dragProps(f.type)} onDrop={e => dropOnSlot(e, f)}
               className={cn(buttonClass('outline', 'sm'), 'cursor-pointer justify-start', busy && 'pointer-events-none opacity-50',
                 over === f.type && 'border-2 border-dashed border-primary bg-primary/10')}>
-              {busy === f.type ? '업로드 중…' : over === f.type ? `여기에 놓으면 ${f.label}로 올라갑니다` : `${f.label} (${f.accept.map(a => a.toUpperCase()).join('/')})`}
+              {busy === f.type ? '업로드 중…' : over === f.type ? `여기에 놓으면 ${f.label}로 올라갑니다`
+                : uploaded.some(u => u.type === f.type) ? <><span className="text-accent">✓</span> {f.label} <span className="font-normal text-muted">— 다시 올리면 교체</span></>
+                : `${f.label} (${f.accept.map(a => a.toUpperCase()).join('/')})`}
               <input type="file" className="hidden" accept={f.accept.map(a => `.${a}`).join(',')} disabled={!!busy}
                 aria-label={`${companyName} ${f.label} 업로드`}
                 onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void uploadMany([{ slot: f, file }]) }} />
@@ -135,6 +138,33 @@ export function AdminUpload({ stage, entryId, companyName }: { stage: Stage; ent
         </div>
       )}
     </div>
+  )
+}
+
+/** 칸별 업로드 현황: ✓ 올라간 파일(누르면 새 창에서 열람) / 없음 */
+function SlotStatus({ stage, uploaded }: { stage: Stage; uploaded: Uploaded[] }) {
+  if (!stage.required_files.length) return null
+  return (
+    <ul className="mt-1 grid gap-0.5 text-xs">
+      {stage.required_files.map(f => {
+        const u = uploaded.find(x => x.type === f.type)
+        return (
+          <li key={f.type} className="flex max-w-[260px] items-center gap-1">
+            {u ? (
+              <>
+                <span className="text-accent">✓</span>
+                <a href={`/api/admin/files/url?path=${encodeURIComponent(u.path)}`} target="_blank" rel="noreferrer"
+                  title={`${u.name} · 올린 시각 ${new Date(u.at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`}
+                  className="min-w-0 truncate font-semibold text-fg hover:text-primary hover:underline">{f.label}</a>
+                {u.version > 1 && <span className="tabular shrink-0 text-muted">v{u.version}</span>}
+              </>
+            ) : (
+              <><span className="text-muted">–</span><span className="text-muted">{f.label} 없음</span></>
+            )}
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -190,12 +220,14 @@ function CompanyRow({ c, stages, onInvite, busyAll }: { c: CompanyView; stages: 
           <td key={s.id}>
             <div className="flex flex-wrap items-center gap-1">
               {cell.required > 0 || cell.files > 0
-                ? <Badge tone={complete ? 'accent' : cell.done > 0 ? 'highlight' : 'neutral'}>{complete ? '제출 완료' : '미제출'} {cell.required > 0 && <span className="tabular ml-1">{cell.done}/{cell.required}</span>}</Badge>
+                ? <Badge tone={complete ? 'accent' : cell.done > 0 ? 'highlight' : 'neutral'}>{complete ? '필수 제출 완료' : '미제출'}
+                    {s.required_files.length > 0 && <span className="tabular ml-1">자료 {cell.files}/{s.required_files.length}</span>}</Badge>
                 : <span className="text-xs text-muted">파일 없음</span>}
               {cell.eligibility !== 'pending' && <EligibilityBadge value={cell.eligibility} />}
               {(s.status === 'published' || cell.result !== 'pending') && <ResultBadge value={cell.result} />}
             </div>
-            <AdminUpload stage={s} entryId={cell.entry_id} companyName={c.name} />
+            <SlotStatus stage={s} uploaded={cell.uploaded} />
+            <AdminUpload stage={s} entryId={cell.entry_id} companyName={c.name} uploaded={cell.uploaded} />
           </td>
         )
       })}
