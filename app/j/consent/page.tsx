@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/server/auth'
 import { fmtDate } from '@/lib/format'
 import type { Consent, ConsentTemplate, Judge } from '@/lib/types'
 import ConsentSigner from './ConsentSigner'
+import WithdrawButton from './WithdrawButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,6 +100,7 @@ export default async function ConsentPage() {
                         )}
                         <span className="tabular text-xs text-muted" title="SHA-256">해시 {c.doc_hash.slice(0, 16)}…</span>
                         <SignedPdfLink path={c.signed_pdf_path} kind="consent">서명본 PDF 보기 (서명 포함)</SignedPdfLink>
+                        <span className="ml-auto"><WithdrawButton consentId={c.id} required={t.required} /></span>
                       </div>
                       {c.conflict_declared && c.conflict_note && (
                         <p className="mt-2 text-sm text-muted">신고 내용 <span className="whitespace-pre-wrap text-fg">{c.conflict_note}</span></p>
