@@ -6,7 +6,7 @@ import { fmtScore } from '@/lib/format'
 import { Alert, Badge, Button, Textarea, cn } from '@/components/ui'
 import type { Criterion } from '@/lib/types'
 import { Dialog } from './Dialog'
-import { missingItems } from './progress'
+import { criterionLabel, missingItems } from './progress'
 import { EVAL_MISSING_EVENT, type EvalMissingDetail } from './EvalNav'
 
 // J-04 평가표 (J-06 현장 모드에서도 재사용)
@@ -281,10 +281,44 @@ export default function ScoringPanel(props: ScoringPanelProps) {
 
   const inputH = big ? 'h-14 text-2xl' : 'h-11 text-lg'
 
+  // 대항목이 있으면 대항목 한 묶음씩 넘겨 가며 입력 (위 단계 탭 · 아래 이전/다음). 마지막 단계는 종합 심사평
+  const groups = criteria.some(c => c.group_name) ? [...new Set(criteria.map(c => c.group_name ?? ''))] : []
+  const stepped = groups.length > 1
+  const steps = stepped ? [...groups.map(g => ({ key: g, label: g || '기타' })), { key: '__overall', label: '종합 심사평' }] : []
+  const [step, setStep] = useState(0)
+  const cur = steps[step]
+  const showCriterion = (c: Criterion) => !stepped || (c.group_name ?? '') === cur?.key
+  const showOverall = !stepped || cur?.key === '__overall'
+  const stepDone = (k: string) => k === '__overall'
+    ? !props.overallRequired || !!overall.trim()
+    : criteria.filter(c => (c.group_name ?? '') === k).every(c => !missing.some(m => m.startsWith(criterionLabel(c) + ' ')))
+  const go = (i: number) => {
+    setStep(i)
+    // 패널 맨 위로 (오른쪽 열이 따로 스크롤된다)
+    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ block: 'nearest' }))
+  }
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Enter: 다음 점수 칸으로. 대항목의 마지막 칸이면 다음 단계로 넘어가 첫 칸(마지막 단계면 종합 심사평)에 커서를 둔다
+  const focusNext = (c: Criterion) => {
+    const i = criteria.findIndex(x => x.id === c.id)
+    const nx = criteria[i + 1]
+    const focus = (id: string) => setTimeout(() => (document.getElementById(id) as HTMLElement | null)?.focus(), 30)
+    if (nx && showCriterion(nx)) return focus(`score-${assignmentId}-${nx.id}`)
+    if (stepped && step < steps.length - 1) {
+      go(step + 1)
+      return focus(nx ? `score-${assignmentId}-${nx.id}` : `overall-${assignmentId}`)
+    }
+    if (!nx) focus(`overall-${assignmentId}`)
+  }
+  // 항목 심사평(선택)은 눌러야 펼친다 — 화면 높이를 줄이려고
+  const [openComment, setOpenComment] = useState<Record<string, boolean>>({})
+
   return (
     <div className="flex flex-col">
       {/* 상단: 합계·저장 상태 */}
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-card px-4 py-3">
+      <div ref={panelRef} aria-hidden />
+      <div className="sticky top-0 z-10 border-b border-line bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
         <div className="flex items-baseline gap-2">
           <span className="text-sm text-muted">합계</span>
           <span className={cn('tabular font-bold', big ? 'text-3xl' : 'text-2xl')}>{fmtScore(total)}</span>
@@ -297,6 +331,26 @@ export default function ScoringPanel(props: ScoringPanelProps) {
           <SaveState lock={lock} status={status} online={online} savedAt={savedAt} errMsg={errMsg} onRetry={() => void flush()} />
         </div>
       </div>
+      {stepped && (
+        <div className="grid border-t border-line" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }} role="tablist">
+          {steps.map((t, i) => {
+            const items = criteria.filter(c => (c.group_name ?? '') === t.key)
+            const sub = items.reduce((a, x) => a + (validNum(vals[x.id]?.score ?? '', x.max_score) ?? 0), 0)
+            const done = stepDone(t.key)
+            return (
+              <button key={t.key} type="button" role="tab" aria-selected={i === step} onClick={() => go(i)}
+                className={cn('min-w-0 border-b-2 px-1 py-2 text-center text-xs leading-tight',
+                  i === step ? 'border-primary bg-primary/5 font-bold text-primary' : 'border-transparent text-muted hover:bg-bg')}>
+                <div className="truncate">{done ? <span className="text-accent">✓ </span> : null}{t.label}</div>
+                <div className="tabular mt-0.5 font-normal">
+                  {t.key === '__overall' ? (overall.trim() ? '입력함' : props.overallRequired ? '필수' : '선택') : `${fmtScore(sub)}/${fmtScore(items.reduce((a, x) => a + x.max_score, 0))}`}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+      </div>
 
       <div className="grid gap-4 p-4">
         {notice && <Alert tone="primary">{notice}</Alert>}
@@ -307,8 +361,9 @@ export default function ScoringPanel(props: ScoringPanelProps) {
         {criteria.length === 0 && <Alert tone="highlight">평가항목이 아직 설정되지 않았습니다.</Alert>}
 
         {criteria.map((c, i) => {
+          if (!showCriterion(c)) return null
           // 대항목이 바뀌는 첫 항목 위에 대항목 머리(배점·소계)를 붙인다
-          const groupHead = c.group_name && criteria[i - 1]?.group_name !== c.group_name ? (() => {
+          const groupHead = !stepped && c.group_name && criteria[i - 1]?.group_name !== c.group_name ? (() => {
             const items = criteria.filter(x => x.group_name === c.group_name)
             const sub = items.reduce((a, x) => a + (validNum(vals[x.id]?.score ?? '', x.max_score) ?? 0), 0)
             return (
@@ -340,6 +395,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
                     <input id={`score-${assignmentId}-${c.id}`} value={v.score} disabled={readOnly}
                       inputMode="decimal" autoComplete="off" placeholder="-"
                       onChange={e => onScore(c, e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); focusNext(c) } }}
                       onBlur={() => { if (n == null || n <= c.max_score) setWarn(w => { const { [c.id]: _x, ...rest } = w; return rest }) }}
                       aria-invalid={!!warn[c.id]}
                       className={cn('tabular w-full rounded-md border bg-card px-3 text-right font-bold outline-none focus:ring-2 disabled:bg-bg disabled:text-fg/70',
@@ -362,22 +418,30 @@ export default function ScoringPanel(props: ScoringPanelProps) {
                   </ul>
                 )}
               </div>
+              {!c.comment_required && !v.comment && !openComment[c.id] ? (
+                <div className="px-4 pb-3">
+                  {!readOnly && <button type="button" onClick={() => setOpenComment(o => ({ ...o, [c.id]: true }))}
+                    className="text-xs font-semibold text-muted hover:text-primary">+ 항목 심사평 쓰기 (선택)</button>}
+                </div>
+              ) : (
               <div className="px-4 pb-4">
                 <Textarea value={v.comment} disabled={readOnly} onChange={e => setCriterion(c, { comment: e.target.value })}
                   placeholder={c.comment_required ? '심사평 (필수)' : '심사평 (선택)'}
                   className={cn('min-h-[64px] text-sm', commentMissing && !readOnly && n != null && 'border-highlight')} />
                 {c.comment_required && <p className={cn('mt-1 text-xs', commentMissing ? 'text-[#8a5a00]' : 'text-muted')}>심사평 필수 항목</p>}
               </div>
+              )}
             </section>
             </Fragment>
           )
         })}
 
+        {showOverall && <>
         <section className="rounded-lg border border-line bg-card p-4">
           <div className="mb-2 font-bold">
             종합 심사평{props.overallRequired && <span className="ml-1 text-sm font-semibold text-danger">(필수)</span>}
           </div>
-          <Textarea value={overall} disabled={readOnly} onChange={e => onReview('overall_comment', e.target.value)}
+          <Textarea id={`overall-${assignmentId}`} value={overall} disabled={readOnly} onChange={e => onReview('overall_comment', e.target.value)}
             placeholder="기업에 대한 종합 의견" className="min-h-[110px] text-sm" />
         </section>
 
@@ -394,6 +458,17 @@ export default function ScoringPanel(props: ScoringPanelProps) {
             <Button variant="ghost" size="sm" className="text-muted" onClick={() => { setReason(''); setReportErr(null); setConflictOpen(true) }}>
               이해관계 있음 신고
             </Button>
+          </div>
+        )}
+        </>}
+
+        {stepped && (
+          <div className="flex items-center justify-between gap-2">
+            <Button variant="outline" disabled={step === 0} onClick={() => go(step - 1)}>← {steps[step - 1]?.label ?? '이전'}</Button>
+            <span className="tabular text-xs text-muted">{step + 1} / {steps.length}</span>
+            {step < steps.length - 1
+              ? <Button variant={stepDone(cur.key) ? 'primary' : 'outline'} onClick={() => go(step + 1)}>{steps[step + 1].label} →</Button>
+              : <span className="w-24 text-right text-xs text-muted">{missing.length ? `미입력 ${missing.length}` : '모두 입력함'}</span>}
           </div>
         )}
       </div>
