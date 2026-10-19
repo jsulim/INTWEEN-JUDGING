@@ -28,18 +28,29 @@ function templateHref() {
   return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`
 }
 
-/** 운영팀 대리 업로드: 참가팀이 메일로 보낸 자료를 검수 후 대신 올린다 (버전 보관, 접수 기간 무관) */
-function AdminUpload({ stage, entryId, companyName }: { stage: Stage; entryId: string; companyName: string }) {
+const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
+/** 파일명으로 제출 칸 찾기 (예: '팀01_사업계획서(전).pdf' → 사업계획서(전)). 긴 이름부터 비교해 '사업계획서'가 '(전)'을 가로채지 않게 한다 */
+function slotForName(slots: Stage['required_files'], name: string) {
+  const n = norm(name)
+  return [...slots].sort((a, b) => b.label.length - a.label.length).find(f => n.includes(norm(f.label)) || n.includes(norm(f.type))) ?? null
+}
+
+/** 운영팀 대리 업로드: 참가팀이 메일로 보낸 자료를 검수 후 대신 올린다 (버전 보관, 접수 기간 무관)
+ *  칸을 눌러 고르거나, 칸에 파일을 끌어다 놓는다. 여러 파일을 상자에 한꺼번에 놓으면 파일명으로 칸을 찾아 올린다. */
+export function AdminUpload({ stage, entryId, companyName }: { stage: Stage; entryId: string; companyName: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [over, setOver] = useState<string | null>(null) // 끌어다 놓는 중인 칸 ('*' = 상자 전체)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   if (!stage.required_files.length || stage.status === 'locked' || stage.status === 'published') return null
 
-  async function upload(fileType: string, label: string, file: File) {
-    if (file.size > MAX_UPLOAD_BYTES) return setMsg({ ok: false, text: SIZE_ERROR })
+  async function upload(fileType: string, label: string, file: File): Promise<string | null> {
+    const slot = stage.required_files.find(f => f.type === fileType)
+    const ext = (file.name.split('.').pop() || '').toLowerCase()
+    if (slot && !slot.accept.includes(ext as 'pdf')) return `${label}은(는) ${slot.accept.map(a => a.toUpperCase()).join('·')} 파일만 올릴 수 있습니다.`
+    if (file.size > MAX_UPLOAD_BYTES) return SIZE_ERROR
     setBusy(fileType)
-    setMsg(null)
     try {
       const base = { entry_id: entryId, file_type: fileType, file_name: file.name, size: file.size }
       const t = await api<{ path: string; token: string; contentType: string }>('/api/admin/submissions', { body: { action: 'ticket', ...base } })
@@ -47,12 +58,55 @@ function AdminUpload({ stage, entryId, companyName }: { stage: Stage; entryId: s
         .uploadToSignedUrl(t.path, t.token, new Blob([file], { type: t.contentType }), { contentType: t.contentType })
       if (error) throw new Error('파일을 업로드하지 못했습니다. 네트워크 상태를 확인해 주세요.')
       await api('/api/admin/submissions', { body: { action: 'complete', path: t.path, ...base } })
-      setMsg({ ok: true, text: `${label} 업로드 완료` })
-      router.refresh()
+      return null
     } catch (e) {
-      setMsg({ ok: false, text: errMsg(e) })
+      return errMsg(e)
     } finally { setBusy(null) }
   }
+
+  // 여러 파일을 순서대로 올리고 결과를 한 줄로 알린다
+  async function uploadMany(items: { slot: Stage['required_files'][number]; file: File }[], unmatched: string[] = []) {
+    setMsg(null)
+    const ok: string[] = []
+    const fail: string[] = []
+    for (const { slot, file } of items) {
+      const err = await upload(slot.type, slot.label, file)
+      if (err) fail.push(`${slot.label}: ${err}`)
+      else ok.push(slot.label)
+    }
+    if (unmatched.length) fail.push(`칸을 찾지 못함: ${unmatched.join(', ')} (파일명에 '${stage.required_files.map(f => f.label).join("' / '")}'가 들어가야 합니다)`)
+    setMsg({ ok: fail.length === 0, text: [ok.length ? `${ok.join(', ')} 업로드 완료` : '', ...fail].filter(Boolean).join(' · ') })
+    if (ok.length) router.refresh()
+  }
+
+  function dropOnSlot(e: React.DragEvent, f: Stage['required_files'][number]) {
+    e.preventDefault()
+    e.stopPropagation()
+    setOver(null)
+    const file = e.dataTransfer.files?.[0]
+    if (file && !busy) void uploadMany([{ slot: f, file }])
+  }
+  function dropOnBox(e: React.DragEvent) {
+    e.preventDefault()
+    setOver(null)
+    if (busy) return
+    const files = Array.from(e.dataTransfer.files ?? [])
+    if (!files.length) return
+    // 칸이 하나뿐이면 첫 파일을 그 칸에, 아니면 파일명으로 칸을 찾는다
+    if (stage.required_files.length === 1) return void uploadMany([{ slot: stage.required_files[0], file: files[0] }])
+    const items: { slot: Stage['required_files'][number]; file: File }[] = []
+    const unmatched: string[] = []
+    for (const file of files) {
+      const slot = slotForName(stage.required_files, file.name)
+      if (slot && !items.some(x => x.slot.type === slot.type)) items.push({ slot, file })
+      else unmatched.push(file.name)
+    }
+    void uploadMany(items, unmatched)
+  }
+  const dragProps = (key: string) => ({
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (over !== key) setOver(key) },
+    onDragLeave: (e: React.DragEvent) => { e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(o => (o === key ? null : o)) },
+  })
 
   return (
     <div className="mt-1">
@@ -60,16 +114,23 @@ function AdminUpload({ stage, entryId, companyName }: { stage: Stage; entryId: s
         {open ? '닫기' : '대리 업로드'}
       </button>
       {open && (
-        <div className="mt-1 grid gap-1.5 rounded-md border border-line bg-bg p-2">
+        <div {...dragProps('*')} onDrop={dropOnBox}
+          className={cn('mt-1 grid gap-1.5 rounded-md border border-line bg-bg p-2 transition-colors', over === '*' && 'border-dashed border-primary bg-primary/5')}>
           {stage.required_files.map(f => (
-            <label key={f.type} className={cn(buttonClass('outline', 'sm'), 'cursor-pointer justify-start', busy && 'pointer-events-none opacity-50')}>
-              {busy === f.type ? '업로드 중…' : `${f.label} (${f.accept.map(a => a.toUpperCase()).join('/')})`}
+            <label key={f.type} {...dragProps(f.type)} onDrop={e => dropOnSlot(e, f)}
+              className={cn(buttonClass('outline', 'sm'), 'cursor-pointer justify-start', busy && 'pointer-events-none opacity-50',
+                over === f.type && 'border-2 border-dashed border-primary bg-primary/10')}>
+              {busy === f.type ? '업로드 중…' : over === f.type ? `여기에 놓으면 ${f.label}로 올라갑니다` : `${f.label} (${f.accept.map(a => a.toUpperCase()).join('/')})`}
               <input type="file" className="hidden" accept={f.accept.map(a => `.${a}`).join(',')} disabled={!!busy}
                 aria-label={`${companyName} ${f.label} 업로드`}
-                onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) upload(f.type, f.label, file) }} />
+                onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void uploadMany([{ slot: f, file }]) }} />
             </label>
           ))}
-          <p className="text-[11px] leading-snug text-muted">PDF 권장 (심사위원 뷰어 호환). 다시 올리면 새 버전으로 교체되고 이전 파일은 보관됩니다.</p>
+          <p className="text-[11px] leading-snug text-muted">
+            칸을 누르거나 <b>파일을 칸 위로 끌어다 놓으세요.</b>
+            {stage.required_files.length > 1 && <> 여러 파일을 이 상자에 한꺼번에 놓으면 파일명(예: &lsquo;{stage.required_files[1].label}&rsquo;)으로 칸을 찾아 올립니다.</>}
+            {' '}PDF 권장 (심사위원 뷰어 호환). 다시 올리면 새 버전으로 교체되고 이전 파일은 보관됩니다.
+          </p>
           {msg && <p className={cn('text-xs', msg.ok ? 'text-accent' : 'text-danger')}>{msg.text}</p>}
         </div>
       )}
