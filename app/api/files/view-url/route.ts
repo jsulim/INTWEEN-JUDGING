@@ -23,24 +23,26 @@ export const POST = handle(async (req: Request) => {
   const download = isAdmin && b.download ? true : undefined
 
   if ('submission_id' in b) {
-    if (!isAdmin) {
+    // 권한 확인과 파일 조회를 동시에 (왕복 줄이기)
+    const [visible, { data: sub }] = await Promise.all([
       // 사용자 클라이언트로 뷰를 조회 → 배정 + 서명 완료 + 이해충돌 아님이 증명된다
-      const { data: visible } = await supabase.from('v_judge_submissions')
-        .select('submission_id').eq('submission_id', b.submission_id).maybeSingle()
-      if (!visible) throw new ApiError(403, '배정된 기업의 자료만 열람할 수 있습니다.')
-    }
-    const { data: sub } = await admin.from('submissions')
-      .select('id, storage_path, pdf_path, file_name').eq('id', b.submission_id).maybeSingle()
+      isAdmin ? Promise.resolve(true)
+        : supabase.from('v_judge_submissions').select('submission_id').eq('submission_id', b.submission_id).maybeSingle().then(r => !!r.data),
+      admin.from('submissions').select('id, storage_path, pdf_path, file_name').eq('id', b.submission_id).maybeSingle(),
+    ])
+    if (!visible) throw new ApiError(403, '배정된 기업의 자료만 열람할 수 있습니다.')
     if (!sub) throw new ApiError(404, '파일을 찾을 수 없습니다.')
     const path = isAdmin && download
       ? sub.storage_path
       : sub.pdf_path ?? (/\.pdf$/i.test(sub.storage_path) ? sub.storage_path : null)
     if (!path) throw new ApiError(422, 'PDF 변환본이 없어 열람할 수 없습니다.')
-    const url = await signedViewUrl(path, download ? { download: sub.file_name } : undefined)
-    await supabase.rpc('log_event', {
-      p_action: download ? 'download' : 'view', p_table: 'submissions', p_row: sub.id,
-      p_meta: { file_name: sub.file_name, pdf: path !== sub.storage_path },
-    })
+    const [url] = await Promise.all([
+      signedViewUrl(path, download ? { download: sub.file_name } : undefined),
+      supabase.rpc('log_event', {
+        p_action: download ? 'download' : 'view', p_table: 'submissions', p_row: sub.id,
+        p_meta: { file_name: sub.file_name, pdf: path !== sub.storage_path },
+      }),
+    ])
     return NextResponse.json({ url, expires_in: SIGNED_URL_TTL })
   }
 

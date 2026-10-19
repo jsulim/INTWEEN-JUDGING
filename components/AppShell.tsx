@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { clearPdfCache } from '@/lib/pdf-cache'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn } from '@/components/ui'
 import { useBrand } from '@/components/Brand'
@@ -13,7 +14,7 @@ const IDLE_MS = 30 * 60 * 1000 // 30분 무동작 시 자동 로그아웃 (4-1 �
 export function useLogout() {
   const router = useRouter()
   return async (reason?: string) => {
-    await supabaseBrowser().auth.signOut()
+    await Promise.all([supabaseBrowser().auth.signOut(), clearPdfCache()])
     router.replace(reason ? `/login?reason=${reason}` : '/login')
     router.refresh()
   }

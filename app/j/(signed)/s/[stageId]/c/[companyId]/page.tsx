@@ -25,24 +25,27 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
   const lock = rowLock(d, row)
   const base = `/j/s/${d.stage.id}`
 
-  // 이해충돌 배정은 뷰가 파일을 내주지 않는다 (v_judge_submissions)
-  const { data: subs } = row.conflict
-    ? { data: [] }
-    : await supabase.from('v_judge_submissions').select('*').eq('stage_id', d.stage.id).eq('company_id', row.company_id)
-  // 탭 순서·이름은 단계 제출 항목 설정을 따른다 (예: 발표자료 → 사업계획서(전) → 사업계획서(후)).
-  // 설정에 없는 파일은 발표자료 → 사업계획서 순으로 뒤에 붙인다
-  const slots = d.stage.required_files ?? []
-  const order = (t: string) => { const i = slots.findIndex(f => f.type === t); return i >= 0 ? i : 100 + (t === 'deck' ? 0 : t === 'plan' ? 1 : 2) }
-  const files: ViewerFile[] = ((subs ?? []) as JudgeSubmissionRow[])
-    .sort((a, b) => order(a.file_type) - order(b.file_type) || a.file_type.localeCompare(b.file_type))
-    .map(s => ({ submission_id: s.submission_id, file_type: s.file_type, file_name: s.file_name, version: s.version, viewable: s.viewable,
-      label: slots.find(f => f.type === s.file_type)?.label }))
-
   // 이전/다음 (이해충돌 제외 기업은 건너뜀)
   const navigable = d.rows.filter(r => !r.conflict || r.company_id === row.company_id)
   const pos = navigable.findIndex(r => r.company_id === row.company_id)
   const prev = navigable[pos - 1]
   const next = navigable[pos + 1]
+
+  // 이해충돌 배정은 뷰가 파일을 내주지 않는다 (v_judge_submissions). 다음 기업 자료도 함께 받아 미리 내려받기에 쓴다
+  const ids = [row.conflict ? null : row.company_id, next?.company_id].filter(Boolean) as string[]
+  const { data: subs } = ids.length
+    ? await supabase.from('v_judge_submissions').select('*').eq('stage_id', d.stage.id).in('company_id', ids)
+    : { data: [] }
+  // 탭 순서·이름은 단계 제출 항목 설정을 따른다 (예: 발표자료 → 사업계획서(전) → 사업계획서(후)).
+  // 설정에 없는 파일은 발표자료 → 사업계획서 순으로 뒤에 붙인다
+  const slots = d.stage.required_files ?? []
+  const order = (t: string) => { const i = slots.findIndex(f => f.type === t); return i >= 0 ? i : 100 + (t === 'deck' ? 0 : t === 'plan' ? 1 : 2) }
+  const filesOf = (companyId: string): ViewerFile[] => ((subs ?? []) as JudgeSubmissionRow[])
+    .filter(s => s.company_id === companyId)
+    .sort((a, b) => order(a.file_type) - order(b.file_type) || a.file_type.localeCompare(b.file_type))
+    .map(s => ({ submission_id: s.submission_id, file_type: s.file_type, file_name: s.file_name, version: s.version, viewable: s.viewable,
+      label: slots.find(f => f.type === s.file_type)?.label }))
+  const files = row.conflict ? [] : filesOf(row.company_id)
   const review = d.reviews.get(row.assignment_id)
 
   return (
@@ -67,7 +70,7 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
         <Alert>이해충돌로 이 기업의 평가에서 제외되었습니다. 자료 열람과 점수 입력이 차단됩니다.</Alert>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)]">
-          <PdfViewer key={row.company_id} files={files} watermarkName={profile.name || user.email || ''}
+          <PdfViewer key={row.company_id} files={files} prefetch={next ? filesOf(next.company_id) : undefined} watermarkName={profile.name || user.email || ''}
             watermarkTitle={`${d.program.title} · ${row.display_name}`}
             className="h-[70vh] lg:h-[calc(100vh-15rem)]" />
           <div className="overflow-hidden rounded-lg border border-line bg-bg lg:h-[calc(100vh-15rem)] lg:overflow-y-auto">

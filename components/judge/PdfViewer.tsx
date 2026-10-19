@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
 import { api } from '@/lib/api'
+import { loadPdfBytes } from '@/lib/pdf-cache'
 import { cn } from '@/components/ui'
 
 // J-04 자료 열람 (8-4): PDF.js 로 캔버스 렌더 + 심사위원명·현재 시각 워터마크.
@@ -69,8 +70,10 @@ function useWatermark(name: string, title?: string) {
   }, [name, title, now])
 }
 
-export default function PdfViewer({ files, watermarkName, watermarkTitle, className, resolveUrl, emptyText = '제출된 자료가 없습니다.' }: {
+export default function PdfViewer({ files, prefetch, watermarkName, watermarkTitle, className, resolveUrl, emptyText = '제출된 자료가 없습니다.' }: {
   files: ViewerFile[]
+  /** 다음에 볼 가능성이 큰 자료 (예: 다음 기업) — 지금 문서가 뜬 뒤 미리 받아 둔다 */
+  prefetch?: ViewerFile[]
   watermarkName: string
   /** 워터마크 첫 줄 (예: '2026 울진군 창업아이디어톤 · 팀명') */
   watermarkTitle?: string
@@ -99,40 +102,76 @@ export default function PdfViewer({ files, watermarkName, watermarkTitle, classN
     return () => ro.disconnect()
   }, [])
 
+  // 파일 하나의 바이트 (캐시: 메모리 → 이 기기 → 네트워크). 공유 링크 화면(resolveUrl)은 기기에 남기지 않는다
+  const bytesOf = useCallback((f: ViewerFile) => loadPdfBytes(
+    resolveUrl ? `custom:${f.submission_id}` : f.submission_id,
+    async () => resolveUrl
+      ? resolveUrl(f)
+      : (await api<{ url: string }>('/api/files/view-url', { body: { submission_id: f.submission_id } })).url,
+    !resolveUrl,
+  ), [resolveUrl])
+
+  // 열어 본 문서는 탭을 오가도 다시 해석하지 않도록 보관 (화면을 떠날 때 정리)
+  const docs = useRef(new Map<string, Promise<PDFDocumentProxy>>())
+  const docOf = useCallback((f: ViewerFile) => {
+    let p = docs.current.get(f.submission_id)
+    if (!p) {
+      p = (async () => {
+        const data = await bytesOf(f)
+        const pdfjs = await loadPdfjs()
+        // pdf.js 가 버퍼를 가져가므로 캐시 원본은 복사해서 넘긴다
+        return pdfjs.getDocument({ data: data.slice(), isEvalSupported: false }).promise
+      })()
+      docs.current.set(f.submission_id, p)
+      p.catch(() => docs.current.delete(f.submission_id))
+    }
+    return p
+  }, [bytesOf])
+  useEffect(() => {
+    const map = docs.current
+    return () => {
+      for (const p of map.values()) p.then(d => d.destroy(), () => null)
+      map.clear()
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
-    let loaded: PDFDocumentProxy | null = null
-    setDoc(null)
     setErr(null)
-    if (!file) { setState('idle'); return }
-    if (!file.viewable) { setState('error'); setErr('PPTX 원본만 있어 화면에서 열람할 수 없습니다. PDF 변환본이 준비되면 열람할 수 있습니다.'); return }
+    if (!file) { setDoc(null); setState('idle'); return }
+    if (!file.viewable) { setDoc(null); setState('error'); setErr('PPTX 원본만 있어 화면에서 열람할 수 없습니다. PDF 변환본이 준비되면 열람할 수 있습니다.'); return }
     setState('loading')
+    docOf(file).then(d => {
+      if (cancelled) return
+      setDoc(d)
+      setState('ready')
+      scrollRef.current?.scrollTo({ top: 0 })
+    }, e => {
+      if (cancelled) return
+      setDoc(null)
+      setState('error')
+      setErr(e instanceof Error ? e.message : '파일을 열지 못했습니다.')
+    })
+    return () => { cancelled = true }
+  }, [file?.submission_id, file?.viewable, reloadKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 지금 문서가 뜨면 나머지 탭과 다음 기업 자료를 미리 받아 둔다 (한 번에 하나씩)
+  const prefetchKey = [...files, ...(prefetch ?? [])].map(f => f.submission_id).join(',')
+  useEffect(() => {
+    if (state !== 'ready') return
+    let stop = false
     ;(async () => {
-      try {
-        const url = resolveUrl
-          ? await resolveUrl(file)
-          : (await api<{ url: string }>('/api/files/view-url', { body: { submission_id: file.submission_id } })).url
-        // 서명 URL(10분)을 오래 붙잡지 않도록 한 번에 받아 메모리에서 연다
-        const res = await fetch(url)
-        if (!res.ok) throw new Error(`파일을 불러오지 못했습니다 (${res.status})`)
-        const data = new Uint8Array(await res.arrayBuffer())
-        const pdfjs = await loadPdfjs()
-        loaded = await pdfjs.getDocument({ data, isEvalSupported: false }).promise
-        if (cancelled) { void loaded.destroy(); return }
-        setDoc(loaded)
-        setState('ready')
-        scrollRef.current?.scrollTo({ top: 0 })
-      } catch (e) {
-        if (cancelled) return
-        setState('error')
-        setErr(e instanceof Error ? e.message : '파일을 열지 못했습니다.')
+      for (const f of files) {
+        if (stop) return
+        if (f.viewable && f.submission_id !== active) await docOf(f).catch(() => null)
+      }
+      for (const f of prefetch ?? []) {
+        if (stop) return
+        if (f.viewable) await bytesOf(f).catch(() => null)
       }
     })()
-    return () => {
-      cancelled = true
-      if (loaded) void loaded.destroy()
-    }
-  }, [file?.submission_id, file?.viewable, reloadKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { stop = true }
+  }, [state === 'ready', prefetchKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 저장·인쇄 단축키 차단
   useEffect(() => {
@@ -181,7 +220,7 @@ export default function PdfViewer({ files, watermarkName, watermarkTitle, classN
             )}
           </Message>
         )}
-        {doc && width > 0 && (
+        {doc && state === 'ready' && width > 0 && (
           <div className="mx-auto grid w-fit gap-4">
             {pages.map(n => <PdfPage key={`${active}-${n}`} doc={doc} pageNo={n} width={width * zoom} watermark={wm} root={scrollRef} />)}
           </div>
