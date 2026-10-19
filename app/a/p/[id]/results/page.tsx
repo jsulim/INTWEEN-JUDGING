@@ -64,7 +64,7 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
       <PageHeader title="평가 결과" description="기업×심사위원 점수, 항목별 평균, 최종 순위. 대시보드·확정·내보내기와 같은 산정 결과입니다."
         actions={<>
           <LinkButton href={`/a/print/${current.id}?mode=sign`} variant="secondary">서명용 총괄표 출력</LinkButton>
-          <LinkButton href={`/a/print/${current.id}?mode=detail`} variant="outline">상세 채점표 출력</LinkButton>
+          <LinkButton href={`/a/print/${current.id}?mode=detail`} variant="outline">심사위원별 채점표 출력</LinkButton>
         </>} />
       <StageTabs stages={stages} current={current.id} base={base} />
       <ResultsView key={current.id} {...props} />

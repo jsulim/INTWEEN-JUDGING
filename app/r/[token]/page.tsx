@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { loadResultShare } from '@/lib/server/result-share'
 import { loadJudgeProgress, loadStageReport } from '@/lib/server/export'
 import { EVENTS } from '@/lib/events'
-import { DetailSheet, SHEET_CSS, SheetTitle, SummarySheet } from '@/components/ResultSheets'
+import { JudgeSheets, SHEET_CSS, SheetTitle, SummarySheet } from '@/components/ResultSheets'
 import { cn } from '@/components/ui'
 import type { ViewerFile } from '@/components/judge/PdfViewer'
 import type { RequiredFile, Stage } from '@/lib/types'
@@ -27,7 +27,7 @@ const TABS = [
 ] as const
 
 // 기관 담당자용 심사 결과 열람 (로그인 없이 링크 하나로 보기만): 종합 평가표 · 심사위원별 채점 결과 · 제출 자료
-export default async function ResultSharePage({ params, searchParams }: { params: { token: string }; searchParams: { stage?: string; tab?: string; per?: string } }) {
+export default async function ResultSharePage({ params, searchParams }: { params: { token: string }; searchParams: { stage?: string; tab?: string; judge?: string } }) {
   const share = await loadResultShare(params.token)
   if (!share) {
     return (
@@ -53,10 +53,10 @@ export default async function ResultSharePage({ params, searchParams }: { params
   const stage = stages.find(s => s.id === searchParams.stage)
     ?? [...stages].reverse().find(s => s.status !== 'ready') ?? stages[stages.length - 1]
   const tab = TABS.find(t => t.key === searchParams.tab)?.key ?? 'summary'
-  const per = searchParams.per === '1' // 심사위원별 채점 결과: 기본은 합계만, 켜면 팀별 세부 점수·종합 심사평
-  const href = (p: { stage?: string; tab?: string; per?: string }) => {
+  const judgeNo = Math.max(Number(searchParams.judge) || 0, 0) // 심사위원별 채점 결과: 화면에는 한 명씩
+  const href = (p: { stage?: string; tab?: string; judge?: number }) => {
     const q = new URLSearchParams({ stage: p.stage ?? stage?.id ?? '', tab: p.tab ?? tab })
-    if ((p.per ?? (per ? '1' : '')) === '1') q.set('per', '1')
+    if (p.judge) q.set('judge', String(p.judge))
     return `/r/${share.token}?${q}`
   }
 
@@ -130,14 +130,8 @@ export default async function ResultSharePage({ params, searchParams }: { params
                 <SheetTitle r={r} subtitle={tab === 'summary' ? '종합 평가표' : '심사위원별 채점 결과'} />
                 {tab === 'summary'
                   ? <SummarySheet r={r} showNames={share.show_judge_names} signature />
-                  : <DetailSheet r={r} showNames={share.show_judge_names} perCompany={per} comments collapsible />}
-                {tab === 'judges' && (
-                  <p className="no-print mt-3 text-sm">
-                    {per
-                      ? <><span className="text-muted">팀 이름을 누르면 세부 항목 점수와 종합 심사평이 펼쳐집니다. </span><Link href={href({ per: '' })} className="font-semibold text-primary hover:underline">합계만 보기</Link></>
-                      : <Link href={href({ per: '1' })} className="font-semibold text-primary hover:underline">팀별 세부 항목 점수 · 종합 심사평 보기 →</Link>}
-                  </p>
-                )}
+                  : <JudgeSheets r={r} showNames={share.show_judge_names} current={judgeNo} nav={i => href({ judge: i })} />}
+                {tab === 'judges' && <p className="no-print mt-4 text-xs text-muted">인쇄하면 심사위원마다 한 장씩 모두 출력됩니다.</p>}
               </div>
             )}
           </>

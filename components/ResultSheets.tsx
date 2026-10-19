@@ -6,9 +6,10 @@ import type { StageReport } from '@/lib/server/export'
 
 // 심사 결과표 (출력 화면 /a/print 와 기관 열람 링크 /r 공용, 서버 컴포넌트)
 //  · SummarySheet  종합 평가표: 팀별 대항목 평균·심사위원 평균·최종 점수·순위 (심사위원별 점수 없음) + 선택: 서명란
-//  · DetailSheet   심사위원별 채점표: 팀 × 심사위원 합계 + 선택: 팀별 세부 항목 점수·종합 심사평
+//  · JudgeSheets   심사위원별 채점표: 심사위원 한 명당 한 장 (세부 항목 점수·합계·종합 심사평·결과)
 
 export const SHEET_CSS = `
+@media screen { .screen-hide { display: none; } }
 .sheet table { width: 100%; border-collapse: collapse; }
 .sheet th, .sheet td { border: 1px solid #555; padding: 6px 8px; }
 .sheet th { background: #f1f1f1; font-weight: 700; text-align: center; white-space: nowrap; }
@@ -18,6 +19,7 @@ export const SHEET_CSS = `
   main { padding: 0 !important; max-width: none !important; }
   .sheet table { font-size: 10.5pt; }
   .page-break { break-before: page; }
+  .screen-hide { display: block !important; }
   tr, td, th { break-inside: avoid; }
 }
 `
@@ -129,106 +131,89 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
   )
 }
 
-export function DetailSheet({ r, showNames, perCompany, comments = false, collapsible = false }: {
-  r: StageReport; showNames: boolean; perCompany: boolean
-  /** 팀별 표 아래 심사위원 종합 심사평 */
-  comments?: boolean
-  /** 화면용: 팀별 세부 표를 접었다 펴기 (인쇄용은 팀마다 새 쪽) */
-  collapsible?: boolean
+/**
+ * 심사위원별 채점표: 심사위원 한 명당 한 장 — 팀 × 세부 항목 점수 · 합계 · 종합 심사평 · 결과(그 심사위원 합계 기준).
+ * current 가 있으면 화면에는 그 심사위원만 보이고(나머지는 인쇄 때만), 인쇄는 심사위원마다 새 쪽.
+ * nav 를 주면 위에 심사위원 이동(탭·이전/다음)을 붙인다.
+ */
+export function JudgeSheets({ r, showNames, current = null, nav }: {
+  r: StageReport; showNames: boolean; current?: number | null
+  nav?: (i: number) => string
 }) {
-  const { passScore, name, verdict, hasBonus } = helpers(r)
+  const { passScore } = helpers(r)
   const criteria = r.criteria
   const judges = sortedJudges(r)
   const judgeLabel = (i: number) => (showNames ? judges[i].name : `심사위원 ${String.fromCharCode(65 + i)}`)
   const overall = new Map(r.reviews.map(v => [v.assignment_id, v.overall_comment]))
+  const scoreOf = (aid: string, cid: string) => r.scores.find(s => s.assignment_id === aid && s.criterion_id === cid)?.score ?? null
+  const totalOf = (aid: string) => {
+    const vals = criteria.map(c => scoreOf(aid, c.id))
+    return vals.some(v => v == null) ? null : vals.reduce<number>((a, v) => a + Number(v), 0)
+  }
+  // 팀 순서: 발표 코드 → 이름
+  const teamIds = [...new Set(r.assignments.map(a => a.company_id))].sort((a, b) => {
+    const ca = r.companies.get(a), cb = r.companies.get(b)
+    return (ca?.blind_code ?? '').localeCompare(cb?.blind_code ?? '', 'ko') || (ca?.name ?? '').localeCompare(cb?.name ?? '', 'ko')
+  })
+  const cur = current == null ? null : Math.min(Math.max(current, 0), judges.length - 1)
+
+  if (!judges.length) return <p className="text-sm text-[#555]">배정된 심사위원이 없습니다.</p>
 
   return (
     <>
-      <table>
-        <thead>
-          <tr>
-            <th>순위</th><th>기업(팀)명</th>
-            {judges.map((j, i) => <th key={j.id}>{judgeLabel(i)}{j.is_chair && showNames && <div className="text-xs font-normal">위원장</div>}</th>)}
-            <th>평균</th>{hasBonus && <th>가감점</th>}<th>최종 점수</th>{passScore != null && <th>결과</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {r.results.map(x => {
-            const tot = new Map(x.judge_totals.map(t => [t.judge_id, t.total]))
-            const conflict = new Set(r.assignments.filter(a => a.company_id === x.company_id && a.conflict).map(a => a.judge_id))
-            return (
-              <tr key={x.company_id}>
-                <td className="num font-bold">{x.rank ?? '-'}</td>
-                <td className="font-semibold">{name(x.company_id)}</td>
-                {judges.map(j => <td key={j.id} className="num">{conflict.has(j.id) ? '제외' : fmtScore(tot.get(j.id) ?? null)}</td>)}
-                <td className="num">{fmtScore(x.raw, 2)}</td>
-                {hasBonus && <td className="num">{x.bonus ? fmtScore(x.bonus) : '-'}</td>}
-                <td className="num font-black">{fmtScore(x.final, 2)}</td>
-                {passScore != null && <td className="num">{verdict(x)}</td>}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-
-      {perCompany && r.results.map(x => {
-        const rows = r.assignments.filter(a => a.company_id === x.company_id)
-        const scoreOf = (aid: string, cid: string) => r.scores.find(s => s.assignment_id === aid && s.criterion_id === cid)?.score ?? null
-        const heading = <>{x.rank != null && `${x.rank}위 · `}{name(x.company_id)} <span className="text-sm font-normal">최종 {fmtScore(x.final, 2)}점</span></>
-        const body = (
-          <>
+      {nav && cur != null && (
+        <div className="no-print mb-4 flex flex-wrap items-center gap-2">
+          <a href={nav(Math.max(cur - 1, 0))} aria-disabled={cur === 0}
+            className={`rounded-md border border-[#ccc] px-3 py-1.5 text-sm font-semibold ${cur === 0 ? 'pointer-events-none opacity-40' : 'hover:bg-[#f3f3f3]'}`}>← 이전</a>
+          <div className="flex flex-wrap overflow-hidden rounded-md border border-[#ccc] text-sm">
+            {judges.map((j, i) => (
+              <a key={j.id} href={nav(i)} className={`px-3 py-1.5 font-semibold ${i === cur ? 'bg-[#222] text-white' : 'bg-white text-[#555] hover:bg-[#f3f3f3]'}`}>{judgeLabel(i)}</a>
+            ))}
+          </div>
+          <a href={nav(Math.min(cur + 1, judges.length - 1))} aria-disabled={cur === judges.length - 1}
+            className={`rounded-md border border-[#ccc] px-3 py-1.5 text-sm font-semibold ${cur === judges.length - 1 ? 'pointer-events-none opacity-40' : 'hover:bg-[#f3f3f3]'}`}>다음 →</a>
+          <span className="tabular text-sm text-[#555]">{cur + 1} / {judges.length}</span>
+        </div>
+      )}
+      {judges.map((j, i) => {
+        const mine = new Map(r.assignments.filter(a => a.judge_id === j.id).map(a => [a.company_id, a]))
+        const hidden = cur != null && i !== cur
+        return (
+          <section key={j.id} className={`${i > 0 ? 'page-break' : ''} ${hidden ? 'screen-hide' : ''} ${i > 0 && !hidden && cur == null ? 'mt-10' : ''}`}>
+            <h2 className="mb-2 flex flex-wrap items-baseline gap-x-3 text-lg font-black">
+              {judgeLabel(i)}{j.is_chair && <span className="text-sm font-semibold">심사위원장</span>}
+              {showNames && j.affiliation && <span className="text-sm font-normal text-[#555]">{j.affiliation}</span>}
+            </h2>
             <table>
               <CriteriaHead criteria={criteria}
-                lead={n => <th rowSpan={n}>심사위원</th>}
+                lead={n => <><th rowSpan={n}>번호</th><th rowSpan={n}>기업(팀)명</th></>}
                 cell={c => <th key={c.id} style={{ whiteSpace: 'normal' }}>{c.name}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
-                tail={n => <th rowSpan={n}>합계</th>} />
+                tail={n => <><th rowSpan={n}>합계</th><th rowSpan={n} style={{ minWidth: 220 }}>종합 심사평</th>{passScore != null && <th rowSpan={n}>결과</th>}</>} />
               <tbody>
-                {judges.map((j, i) => {
-                  const a = rows.find(a => a.judge_id === j.id)
-                  if (!a) return null
-                  if (a.conflict) return <tr key={j.id}><td>{judgeLabel(i)}</td><td colSpan={criteria.length + 1} className="num">이해충돌 제외</td></tr>
-                  const total = x.judge_totals.find(t => t.judge_id === j.id)?.total ?? null
+                {teamIds.filter(id => mine.has(id)).map((id, k) => {
+                  const a = mine.get(id)!
+                  const c = r.companies.get(id)
+                  const label = <><td className="num whitespace-nowrap">{c?.blind_code ?? k + 1}</td><td className="whitespace-nowrap font-semibold">{c?.name ?? '(삭제된 기업)'}</td></>
+                  if (a.conflict) {
+                    return <tr key={id}>{label}<td colSpan={criteria.length + 2 + (passScore != null ? 1 : 0)} className="num text-[#777]">이해충돌 제외</td></tr>
+                  }
+                  const total = totalOf(a.id)
+                  const comment = overall.get(a.id)?.trim()
                   return (
-                    <tr key={j.id}>
-                      <td className="whitespace-nowrap font-semibold">{judgeLabel(i)}</td>
-                      {criteria.map(c => { const v = scoreOf(a.id, c.id); return <td key={c.id} className="num">{fmtScore(v == null ? null : Number(v))}</td> })}
+                    <tr key={id}>
+                      {label}
+                      {criteria.map(cr => { const v = scoreOf(a.id, cr.id); return <td key={cr.id} className="num">{fmtScore(v == null ? null : Number(v))}</td> })}
                       <td className="num font-bold">{fmtScore(total)}</td>
+                      <td style={{ whiteSpace: 'pre-wrap', fontSize: '0.92em' }}>{comment || ''}</td>
+                      {passScore != null && <td className="num whitespace-nowrap">{total == null ? '미입력' : belowPass(total, passScore) ? '미달' : '합격선 이상'}</td>}
                     </tr>
                   )
                 })}
-                <tr>
-                  <td className="font-bold">평균</td>
-                  {criteria.map(c => <td key={c.id} className="num font-semibold">{fmtScore(x.criterion_avgs[c.id], 2)}</td>)}
-                  <td className="num font-black">{fmtScore(x.raw, 2)}</td>
-                </tr>
               </tbody>
             </table>
-            {comments && (
-              <div className="mt-3 grid gap-2 text-sm">
-                {judges.map((j, i) => {
-                  const a = rows.find(a => a.judge_id === j.id && !a.conflict)
-                  const text = a ? overall.get(a.id) : null
-                  if (!text?.trim()) return null
-                  return (
-                    <div key={j.id} className="rounded border border-[#ccc] p-2.5">
-                      <div className="mb-1 text-xs font-bold text-[#555]">{judgeLabel(i)} 종합 심사평</div>
-                      <p className="whitespace-pre-wrap">{text}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </>
-        )
-        return collapsible ? (
-          <details key={x.company_id} className="mt-3 rounded-lg border border-line bg-card p-3">
-            <summary className="cursor-pointer text-base font-black">{heading}</summary>
-            <div className="mt-3">{body}</div>
-          </details>
-        ) : (
-          <section key={x.company_id} className="page-break mt-8">
-            <h2 className="mb-2 text-lg font-black">{heading}</h2>
-            {body}
+            <p className="mt-6 text-right">
+              {sheetDate(r)} &nbsp;&nbsp; 심사위원 <span className="inline-block min-w-[7em] border-b border-[#555] text-center font-semibold">{showNames ? j.name : ''}</span> &nbsp;(서명)
+            </p>
           </section>
         )
       })}
