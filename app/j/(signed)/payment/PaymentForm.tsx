@@ -84,7 +84,7 @@ export default function PaymentForm({ item }: { item: MyPayment }) {
             <DocUpload judgeId={item.judge_id} kind="id_card" label="신분증 사본" done={!!s?.has_id_card} disabled={!consent} />
             <DocUpload judgeId={item.judge_id} kind="bank_copy" label="통장 사본" done={!!s?.has_bank_copy} disabled={!consent} />
           </div>
-          <p className="text-xs text-muted">정산 담당자만 열람할 수 있습니다. 신분증은 주민등록번호 뒷자리를 가려서 올려도 됩니다.</p>
+          <p className="text-xs text-muted">정산 담당자만 열람할 수 있습니다. 신분증은 <b className="text-fg">주민등록번호 뒷자리까지 모두 보이게</b> 찍어 올려 주세요 (원천징수 신고에 필요합니다).</p>
         </div>
         {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         <div className="flex justify-end"><Button type="submit" disabled={busy || !consent}>{busy ? '저장 중…' : '저장'}</Button></div>
