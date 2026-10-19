@@ -3,7 +3,8 @@ import { SignedPdfLink } from '@/components/judge/SignedPdfLink'
 import { requireRole } from '@/lib/server/auth'
 import { fmtDate } from '@/lib/format'
 import type { Consent, ConsentTemplate, Judge } from '@/lib/types'
-import ConsentSigner from './ConsentSigner'
+import { supabaseAdmin } from '@/lib/supabase/server'
+import ConsentSigner, { type ConflictCompany } from './ConsentSigner'
 import WithdrawButton from './WithdrawButton'
 
 export const dynamic = 'force-dynamic'
@@ -33,7 +34,18 @@ export default async function ConsentPage() {
   ])
   const templates = ((tpls ?? []) as ConsentTemplate[]).sort((a, b) =>
     (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || a.title.localeCompare(b.title, 'ko'))
-  const consents = (cons ?? []) as Consent[]
+  const consents = (cons ?? []) as (Consent & { conflict_company_ids?: string[] | null })[]
+
+  // 이해충돌 확인서용 기업 목록: 배정 전에도 고를 수 있게 프로그램에 등록된 기업 전체 (이름·코드만)
+  const conflictPrograms = [...new Set(templates.filter(t => t.kind === 'conflict').map(t => t.program_id))]
+  const { data: compRows } = conflictPrograms.length
+    ? await supabaseAdmin().from('companies').select('id, program_id, name, blind_code').in('program_id', conflictPrograms)
+    : { data: [] }
+  const companiesOf = (programId: string): ConflictCompany[] => (compRows ?? [])
+    .filter(c => c.program_id === programId)
+    .map(c => ({ id: c.id as string, name: c.name as string, code: (c.blind_code as string | null) ?? null }))
+    .sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', 'ko') || a.name.localeCompare(b.name, 'ko'))
+  const companyName = new Map((compRows ?? []).map(c => [c.id as string, c.name as string]))
   const activeIds = new Set(templates.map(t => t.id))
 
   const groups = judges.map(j => {
@@ -102,6 +114,9 @@ export default async function ConsentPage() {
                         <SignedPdfLink path={c.signed_pdf_path} kind="consent">서명본 PDF 보기 (서명 포함)</SignedPdfLink>
                         <span className="ml-auto"><WithdrawButton consentId={c.id} required={t.required} /></span>
                       </div>
+                      {c.conflict_declared && !!c.conflict_company_ids?.length && (
+                        <p className="mt-2 text-sm text-muted">평가 제외 기업 <span className="font-semibold text-danger">{c.conflict_company_ids.map(id => companyName.get(id) ?? '(삭제된 기업)').join(', ')}</span></p>
+                      )}
                       {c.conflict_declared && c.conflict_note && (
                         <p className="mt-2 text-sm text-muted">신고 내용 <span className="whitespace-pre-wrap text-fg">{c.conflict_note}</span></p>
                       )}
@@ -118,7 +133,8 @@ export default async function ConsentPage() {
                 }
                 return (
                   <Card key={t.id} title={head} actions={t.required ? <Badge tone="highlight">서명 필요</Badge> : undefined}>
-                    <ConsentSigner judgeId={judge.id} template={{ id: t.id, kind: t.kind, body: t.body }} />
+                    <ConsentSigner judgeId={judge.id} template={{ id: t.id, kind: t.kind, body: t.body }}
+                      companies={t.kind === 'conflict' ? companiesOf(judge.program_id) : undefined} />
                   </Card>
                 )
               })}

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { ApiError, handle, requireApi } from '@/lib/server/auth'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { BUCKET } from '@/lib/server/storage'
+import { CONSENT_CONFLICT_REASON } from '@/lib/consent-conflict'
 
 // 동의서 서명 취소: 본인 서명만, 평가표를 최종 제출하기 전까지만. 서명 기록·서명본 파일을 지우고 다시 서명할 수 있게 한다
 const Body = z.object({ consent_id: z.string().min(1) })
@@ -14,7 +15,7 @@ export const POST = handle(async (req: Request) => {
   const admin = supabaseAdmin()
 
   const { data: c } = await admin.from('consents')
-    .select('id, judge_id, template_id, signature_path, signed_pdf_path, judges!inner(user_id)')
+    .select('*, judges!inner(user_id)')
     .eq('id', parsed.data.consent_id).maybeSingle()
   const owner = (c?.judges as unknown as { user_id: string } | null)?.user_id
   if (!c || owner !== user.id) throw new ApiError(404, '서명 기록을 찾을 수 없습니다.')
@@ -25,6 +26,12 @@ export const POST = handle(async (req: Request) => {
 
   const { error } = await admin.from('consents').delete().eq('id', c.id)
   if (error) throw new Error(error.message)
+  // 이 확인서로 자동 제외했던 배정은 되돌린다 (채점 화면에서 직접 신고한 것은 그대로)
+  const ids = (c.conflict_company_ids ?? []) as string[]
+  if (ids.length) {
+    await admin.from('assignments').update({ conflict: false, conflict_reason: null, conflict_reported_at: null })
+      .eq('judge_id', c.judge_id).eq('conflict', true).in('company_id', ids).like('conflict_reason', `${CONSENT_CONFLICT_REASON}%`)
+  }
   await admin.storage.from(BUCKET).remove([c.signature_path, c.signed_pdf_path].filter(Boolean) as string[]).then(() => null, () => null)
   await supabase.rpc('log_event', { p_action: 'consent.withdraw', p_table: 'consents', p_row: c.id, p_meta: { template_id: c.template_id } })
 
