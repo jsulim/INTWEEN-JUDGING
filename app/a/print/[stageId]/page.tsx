@@ -19,7 +19,7 @@ export default async function PrintSheet({ params, searchParams }: {
   if (!r) notFound()
   const mode = searchParams.mode === 'detail' ? 'detail' : 'sign'
   const showNames = searchParams.names !== '0'
-  const perCompany = searchParams.per !== '0'
+  const perCompany = searchParams.per === '1' // 기본: 심사위원별 합계만
   const href = (p: Partial<{ mode: string; names: string; per: string }>) => {
     const q = new URLSearchParams({ mode, names: showNames ? '1' : '0', per: perCompany ? '1' : '0', ...p })
     return `/a/print/${params.stageId}?${q}`
