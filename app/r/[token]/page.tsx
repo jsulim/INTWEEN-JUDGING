@@ -124,7 +124,7 @@ export default async function ResultSharePage({ params, searchParams }: { params
               <div className="sheet rounded-lg border border-line bg-white p-4 text-[#111] print:border-0 print:p-0">
                 <SheetTitle r={r} subtitle={tab === 'summary' ? '종합 평가표' : '심사위원별 채점 결과'} />
                 {tab === 'summary'
-                  ? <SummarySheet r={r} showNames={share.show_judge_names} signature={false} />
+                  ? <SummarySheet r={r} showNames={share.show_judge_names} signature />
                   : <DetailSheet r={r} showNames={share.show_judge_names} perCompany comments collapsible />}
                 {tab === 'judges' && <p className="no-print mt-3 text-xs text-muted">팀 이름을 누르면 세부 항목 점수와 심사위원 종합 심사평이 펼쳐집니다.</p>}
               </div>
