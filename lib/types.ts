@@ -380,6 +380,19 @@ export interface PoolShare {
   created_at: string
 }
 
+export interface ResultShare {
+  id: string
+  token: string
+  title: string
+  program_id: string
+  show_judge_names: boolean
+  expires_at: string | null
+  revoked_at: string | null
+  view_count: number
+  last_viewed_at: string | null
+  created_at: string
+}
+
 // 뷰
 export interface BlindCompanyRow {
   stage_id: string

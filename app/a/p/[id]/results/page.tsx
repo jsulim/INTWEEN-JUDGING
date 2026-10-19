@@ -3,7 +3,8 @@ import { StageTabs } from '@/components/admin/results/ui'
 import ResultsView, { type ResultsViewProps } from '@/components/admin/results/ResultsView'
 import { requireRole } from '@/lib/server/auth'
 import { loadJudgeProgress, loadStageReport } from '@/lib/server/export'
-import type { Stage } from '@/lib/types'
+import ResultShares from '@/components/admin/results/ResultShares'
+import type { ResultShare, Stage } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,10 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
   const current = stages.find(s => s.id === searchParams.stage)
     ?? stages.find(s => s.status === 'evaluating') ?? stages.find(s => s.status === 'locked') ?? stages[0]
 
-  const report = await loadStageReport(supabase, current.id)
+  const [report, { data: shareRows }] = await Promise.all([
+    loadStageReport(supabase, current.id),
+    supabase.from('result_shares').select('*').eq('program_id', params.id).order('created_at', { ascending: false }),
+  ])
   const progress = await loadJudgeProgress(supabase, report)
   const chairJudge = report.judges.find(j => j.is_chair) ?? null
   const { data: chairReview } = chairJudge
@@ -64,6 +68,9 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
         </>} />
       <StageTabs stages={stages} current={current.id} base={base} />
       <ResultsView key={current.id} {...props} />
+      <div className="mt-5">
+        <ResultShares programId={params.id} programTitle={report.program.title} shares={(shareRows ?? []) as ResultShare[]} />
+      </div>
     </>
   )
 }
