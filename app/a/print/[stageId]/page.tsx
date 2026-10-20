@@ -28,7 +28,7 @@ export default async function PrintSheet({ params, searchParams }: {
 
   return (
     <div className="mx-auto max-w-[1100px] text-[#111]">
-      <style>{`@page { size: A4 ${mode === 'detail' ? 'landscape' : 'portrait'}; margin: 12mm; }${SHEET_CSS}`}</style>
+      <style>{`@page { size: A4 portrait; margin: 12mm; }${SHEET_CSS}`}</style>
 
       <div className="no-print">
         <PrintBar back={`/a/p/${r.stage.program_id}/results?stage=${r.stage.id}`} options={[

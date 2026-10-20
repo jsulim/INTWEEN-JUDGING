@@ -88,7 +88,7 @@ export default async function ResultSharePage({ params, searchParams }: { params
 
   return (
     <div style={vars} className="min-h-screen bg-bg text-fg">
-      <style>{`${SHEET_CSS}\n@page { size: A4 ${tab === 'judges' ? 'landscape' : 'portrait'}; margin: 12mm; }`}</style>
+      <style>{`${SHEET_CSS}\n@page { size: A4 portrait; margin: 12mm; }`}</style>
       <header className="no-print bg-[var(--ev-deep)] text-white">
         <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
           <p className="text-sm text-white/60">{ev ? ev.title : 'INTWEEN 심사 관리 플랫폼'}</p>
