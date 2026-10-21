@@ -28,7 +28,14 @@ export const SHEET_CSS = `
 .pf td.pf-cell { padding: 0; border: 0; }
 .pf-space { height: 0; }
 @page { margin: 0; }
+/* 심사위원 개별 평가표 쪽: 화면에서는 이어진 표, 인쇄에서는 기업 2개씩 한 쪽 + 오른쪽 아래 서명란 */
+.page-sign { display: none; }
+@media screen { .print-only { display: none; } }
+@media screen { .jpage.cont thead { display: none; } }
 @media print {
+  .jpage { min-height: 262mm; display: flex; flex-direction: column; }
+  .page-sign { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 10mm; font-size: 10.5pt; }
+  .screen-sign { display: none; }
   .pf-space { height: 12mm; }
   .pf td.pf-body { padding: 0 12mm; }
   header, nav, .no-print { display: none !important; }
@@ -52,9 +59,14 @@ export function PrintFrame({ children }: { children: ReactNode }) {
   )
 }
 
+/** 심사위원 개별 평가표: 인쇄 1쪽당 기업 수 */
+const PER_PAGE = 2
+
 /** 평가항목 이름: 가운뎃점·쉼표·빗금 뒤에서도 줄바꿈 가능 (keep-all 이라 그 외에는 띄어쓰기에서만) */
+const WORD_JOINER = String.fromCharCode(0x2060)
 function critLabel(name: string) {
-  return name.split(/(?<=[·ㆍ・,/])/).map((part, i) => <Fragment key={i}>{i > 0 && <wbr />}{part}</Fragment>)
+  // 가운뎃점 앞에 단어 결합 문자(U+2060)를 넣어 '·'가 다음 줄 맨 앞으로 떨어지지 않게 한다
+  return name.replace(/\s*([·ㆍ・])/g, WORD_JOINER + '$1').split(/(?<=[·ㆍ・,/])/).map((part, i) => <Fragment key={i}>{i > 0 && <wbr />}{part}</Fragment>)
 }
 
 /** 심사위원 기호 A·B·C… (sortedJudges 순서) */
@@ -201,7 +213,7 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
  * current 가 있으면 화면에는 그 심사위원만 보이고(나머지는 인쇄 때만), 인쇄는 심사위원마다 새 쪽.
  * nav 를 주면 위에 심사위원 이동(탭·이전/다음)을 붙인다.
  */
-export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref, editRemarks }: {
+export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref, editRemarks, title }: {
   r: StageReport; showNames: boolean; current?: number | null
   nav?: (i: number) => string
   /** 팀마다 종합 심사평 행 (기본 접힘). 화면·인쇄 같은 설정 */
@@ -210,6 +222,8 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
   commentsHref?: string
   /** 비고 칸을 눌러 작성: 저장 API 주소 (없으면 읽기만) */
   editRemarks?: string
+  /** 표 제목: 인쇄하면 쪽마다 맨 위에 (화면에서는 한 번만) */
+  title?: ReactNode
 }) {
   const criteria = r.criteria
   const judges = sortedJudges(r)
@@ -241,6 +255,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
 
   return (
     <>
+      {title && <div className="no-print">{title}</div>}
       {nav && cur != null && (
         <div className="no-print mb-4 flex flex-wrap items-center gap-2">
           <a href={nav(Math.max(cur - 1, 0))} aria-disabled={cur === 0}
@@ -263,54 +278,73 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
       {judges.map((j, i) => {
         const mine = new Map(r.assignments.filter(a => a.judge_id === j.id).map(a => [a.company_id, a]))
         const hidden = cur != null && i !== cur
+        const ids = teamIds.filter(id => mine.has(id))
+        // 인쇄 1쪽 = 기업 2개 + 쪽마다 오른쪽 아래 서명란. 화면에서는 이어진 표 하나처럼 보인다
+        const pages = Array.from({ length: Math.max(1, Math.ceil(ids.length / PER_PAGE)) }, (_, p) => ids.slice(p * PER_PAGE, (p + 1) * PER_PAGE))
+        const head = (
+          <CriteriaHead criteria={criteria}
+            top={
+              <tr>
+                <th colSpan={span} className="judge-head">
+                  {judgeLabel(i)}{j.is_chair && <span className="ml-2 text-sm">심사위원장</span>}
+                  {showNames && j.affiliation && <span className="ml-3 text-sm font-normal">{j.affiliation}</span>}
+                </th>
+              </tr>
+            }
+            lead={n => <><th rowSpan={n}>번호</th><th rowSpan={n}>기업(팀)명</th></>}
+            cell={c => <th key={c.id} className="crit">{critLabel(c.name)}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
+            tail={n => <><th rowSpan={n}>합계</th><th rowSpan={n} style={{ minWidth: 90 }}>비고</th></>} />
+        )
+        const signer = (
+          <>
+            {todayKst()} &nbsp;&nbsp; 심사위원 <span className="inline-block min-w-[7em] border-b border-[#555] text-center font-semibold">{showNames ? j.name : ''}</span>
+          </>
+        )
         return (
-          <section key={j.id} className={`${i > 0 ? 'page-break' : ''} ${hidden ? 'screen-hide' : ''} ${i > 0 && !hidden && cur == null ? 'mt-10' : ''}`}>
-            <table>
-              <CriteriaHead criteria={criteria}
-                top={
-                  <tr>
-                    <th colSpan={span} className="judge-head">
-                      {judgeLabel(i)}{j.is_chair && <span className="ml-2 text-sm">심사위원장</span>}
-                      {showNames && j.affiliation && <span className="ml-3 text-sm font-normal">{j.affiliation}</span>}
-                    </th>
-                  </tr>
-                }
-                lead={n => <><th rowSpan={n}>번호</th><th rowSpan={n}>기업(팀)명</th></>}
-                cell={c => <th key={c.id} className="crit">{critLabel(c.name)}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
-                tail={n => <><th rowSpan={n}>합계</th><th rowSpan={n} style={{ minWidth: 90 }}>비고</th></>} />
-              {/* 팀마다: 점수 행 + 아래 전체 폭 종합 심사평 행 (심사평이 길어도 표가 깨지지 않게) */}
-              {teamIds.filter(id => mine.has(id)).map((id, k) => {
-                const a = mine.get(id)!
-                const c = r.companies.get(id)
-                const label = <><td className="num whitespace-nowrap">{c?.blind_code ?? k + 1}</td><td className="font-semibold">{c?.name ?? '(삭제된 기업)'}</td></>
-                if (a.conflict) {
-                  return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 3} className="num text-[#777]">이해충돌 제외</td>{remarkTd(a.id, c?.name ?? '', judgeLabel(i))}</tr></tbody>
-                }
-                const total = totalOf(a.id)
-                const comment = comments ? overall.get(a.id)?.trim() : null
-                return (
-                  <tbody key={id} className="team">
-                    <tr>
-                      {label}
-                      {criteria.map(cr => { const v = scoreOf(a.id, cr.id); return <td key={cr.id} className="num">{fmtScore(v == null ? null : Number(v))}</td> })}
-                      <td className="num font-bold">{fmtScore(total)}</td>
-                      {remarkTd(a.id, c?.name ?? '', judgeLabel(i))}
-                    </tr>
-                    {comments && (
-                      <tr>
-                        <td colSpan={span} className="comment">
-                          <span className="comment-label">종합 심사평</span>
-                          {comment || <span className="text-[#999]">(작성 안 함)</span>}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                )
-              })}
-            </table>
-            <p className="mt-6 text-right">
-              {todayKst()} &nbsp;&nbsp; 심사위원 <span className="inline-block min-w-[7em] border-b border-[#555] text-center font-semibold">{showNames ? j.name : ''}</span> &nbsp;(서명)
-            </p>
+          <section key={j.id} className={`${hidden ? 'screen-hide' : ''} ${i > 0 && !hidden && cur == null ? 'mt-10' : ''}`}>
+            {pages.map((chunk, p) => (
+              <div key={p} className={`jpage ${p > 0 ? 'cont' : ''} ${i > 0 || p > 0 ? 'page-break' : ''}`}>
+                {title && <div className="print-only">{title}</div>}
+                <table>
+                  {head}
+                  {/* 팀마다: 점수 행 + 아래 전체 폭 종합 심사평 행 (심사평이 길어도 표가 깨지지 않게) */}
+                  {chunk.map(id => {
+                    const k = ids.indexOf(id)
+                    const a = mine.get(id)!
+                    const c = r.companies.get(id)
+                    const label = <><td className="num whitespace-nowrap">{c?.blind_code ?? k + 1}</td><td className="font-semibold">{c?.name ?? '(삭제된 기업)'}</td></>
+                    if (a.conflict) {
+                      return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 3} className="num text-[#777]">이해충돌 제외</td>{remarkTd(a.id, c?.name ?? '', judgeLabel(i))}</tr></tbody>
+                    }
+                    const total = totalOf(a.id)
+                    const comment = comments ? overall.get(a.id)?.trim() : null
+                    return (
+                      <tbody key={id} className="team">
+                        <tr>
+                          {label}
+                          {criteria.map(cr => { const v = scoreOf(a.id, cr.id); return <td key={cr.id} className="num">{fmtScore(v == null ? null : Number(v))}</td> })}
+                          <td className="num font-bold">{fmtScore(total)}</td>
+                          {remarkTd(a.id, c?.name ?? '', judgeLabel(i))}
+                        </tr>
+                        {comments && (
+                          <tr>
+                            <td colSpan={span} className="comment">
+                              <span className="comment-label">종합 심사평</span>
+                              {comment || <span className="text-[#999]">(작성 안 함)</span>}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    )
+                  })}
+                </table>
+                <div className="page-sign">
+                  <span className="text-[#555]">{judgeLabel(i)} · {p + 1} / {pages.length}쪽</span>
+                  <span>{signer} &nbsp;&nbsp; 서명 : <span className="inline-block w-[7em]" /> (인)</span>
+                </div>
+              </div>
+            ))}
+            <p className="screen-sign mt-6 text-right">{signer} &nbsp;(서명)</p>
           </section>
         )
       })}

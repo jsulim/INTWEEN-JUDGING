@@ -44,10 +44,9 @@ export default async function PrintSheet({ params, searchParams }: {
 
       <PrintFrame>
         <div className="sheet bg-white p-2">
-          <SheetTitle r={r} subtitle={mode === 'sign' ? '심사 결과 총괄표' : '심사위원별 채점표'} />
           {mode === 'sign'
-            ? <SummarySheet r={r} showNames={showNames} signature />
-            : <JudgeSheets r={r} showNames={showNames} current={judgeNo} nav={i => href({ judge: String(i) })} comments={cm} editRemarks="/api/admin/remarks" />}
+            ? <><SheetTitle r={r} subtitle="심사 결과 총괄표" /><SummarySheet r={r} showNames={showNames} signature /></>
+            : <JudgeSheets title={<SheetTitle r={r} subtitle="심사위원별 채점표" />} r={r} showNames={showNames} current={judgeNo} nav={i => href({ judge: String(i) })} comments={cm} editRemarks="/api/admin/remarks" />}
         </div>
       </PrintFrame>
     </div>
