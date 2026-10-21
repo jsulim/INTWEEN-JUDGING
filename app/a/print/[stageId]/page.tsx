@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 // 참가자에게 공개하는 문서가 아니다 (결과 공개는 기업 화면의 결과 확인으로 한다).
 export default async function PrintSheet({ params, searchParams }: {
   params: { stageId: string }
-  searchParams: { mode?: string; names?: string; judge?: string }
+  searchParams: { mode?: string; names?: string; judge?: string; cm?: string }
 }) {
   const { supabase } = await requireRole('admin')
   const r = await loadStageReport(supabase, params.stageId).catch(() => null)
@@ -20,8 +20,9 @@ export default async function PrintSheet({ params, searchParams }: {
   const mode = searchParams.mode === 'detail' ? 'detail' : 'sign'
   const showNames = searchParams.names !== '0'
   const judgeNo = Math.max(Number(searchParams.judge) || 0, 0)
-  const href = (p: Partial<{ mode: string; names: string; judge: string }>) => {
-    const q = new URLSearchParams({ mode, names: showNames ? '1' : '0', ...p })
+  const cm = searchParams.cm === '1' // 심사위원별 채점표: 종합 심사평 포함 여부 (기본 제외)
+  const href = (p: Partial<{ mode: string; names: string; judge: string; cm: string }>) => {
+    const q = new URLSearchParams({ mode, names: showNames ? '1' : '0', judge: String(judgeNo), cm: cm ? '1' : '0', ...p })
     return `/a/print/${params.stageId}?${q}`
   }
   const incomplete = r.results.some(x => x.in_progress || x.final == null)
@@ -34,6 +35,7 @@ export default async function PrintSheet({ params, searchParams }: {
         <PrintBar back={`/a/p/${r.stage.program_id}/results?stage=${r.stage.id}`} options={[
           [{ label: '서명용 총괄표', href: href({ mode: 'sign' }), on: mode === 'sign' }, { label: '심사위원별 채점표', href: href({ mode: 'detail' }), on: mode === 'detail' }],
           [{ label: '심사위원 이름 표시', href: href({ names: '1' }), on: showNames }, { label: mode === 'sign' ? '이름 칸 비움' : '이름 가림 (A·B·C)', href: href({ names: '0' }), on: !showNames }],
+          ...(mode === 'detail' ? [[{ label: '종합 심사평 포함', href: href({ cm: '1' }), on: cm }, { label: '심사평 제외', href: href({ cm: '0' }), on: !cm }]] : []),
         ]} />
         {incomplete && (
           <p className="mb-4 rounded-md bg-[#fff4d6] px-4 py-2 text-sm text-[#8a5a00]">아직 평가가 끝나지 않은 기업이 있습니다. 모든 심사위원이 제출한 뒤 출력하세요.</p>
@@ -44,7 +46,7 @@ export default async function PrintSheet({ params, searchParams }: {
         <SheetTitle r={r} subtitle={mode === 'sign' ? '심사 결과 총괄표' : '심사위원별 채점표'} />
         {mode === 'sign'
           ? <SummarySheet r={r} showNames={showNames} signature />
-          : <JudgeSheets r={r} showNames={showNames} current={judgeNo} nav={i => href({ judge: String(i) })} />}
+          : <JudgeSheets r={r} showNames={showNames} current={judgeNo} nav={i => href({ judge: String(i) })} comments={cm} />}
       </div>
     </div>
   )

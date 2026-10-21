@@ -171,9 +171,13 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
  * current 가 있으면 화면에는 그 심사위원만 보이고(나머지는 인쇄 때만), 인쇄는 심사위원마다 새 쪽.
  * nav 를 주면 위에 심사위원 이동(탭·이전/다음)을 붙인다.
  */
-export function JudgeSheets({ r, showNames, current = null, nav }: {
+export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref }: {
   r: StageReport; showNames: boolean; current?: number | null
   nav?: (i: number) => string
+  /** 팀마다 종합 심사평 행 (기본 접힘). 화면·인쇄 같은 설정 */
+  comments?: boolean
+  /** 심사평 펼치기/접기 링크 (nav 옆에 표시) */
+  commentsHref?: string
 }) {
   const { passScore } = helpers(r)
   const criteria = r.criteria
@@ -209,6 +213,11 @@ export function JudgeSheets({ r, showNames, current = null, nav }: {
           <a href={nav(Math.min(cur + 1, judges.length - 1))} aria-disabled={cur === judges.length - 1}
             className={`rounded-md border border-[#ccc] px-3 py-1.5 text-sm font-semibold ${cur === judges.length - 1 ? 'pointer-events-none opacity-40' : 'hover:bg-[#f3f3f3]'}`}>다음 →</a>
           <span className="tabular text-sm text-[#555]">{cur + 1} / {judges.length}</span>
+          {commentsHref && (
+            <a href={commentsHref} className="ml-auto rounded-md border border-[#ccc] px-3 py-1.5 text-sm font-semibold hover:bg-[#f3f3f3]">
+              {comments ? '▲ 종합 심사평 접기' : '▼ 종합 심사평 펼치기'}
+            </a>
+          )}
         </div>
       )}
       {judges.map((j, i) => {
@@ -238,7 +247,7 @@ export function JudgeSheets({ r, showNames, current = null, nav }: {
                   return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 2} className="num text-[#777]">이해충돌 제외</td></tr></tbody>
                 }
                 const total = totalOf(a.id)
-                const comment = overall.get(a.id)?.trim()
+                const comment = comments ? overall.get(a.id)?.trim() : null
                 return (
                   <tbody key={id} className="team">
                     <tr>
@@ -247,12 +256,14 @@ export function JudgeSheets({ r, showNames, current = null, nav }: {
                       <td className="num font-bold">{fmtScore(total)}</td>
                       {passScore != null && <td className="num whitespace-nowrap">{total == null ? '미입력' : belowPass(total, passScore) ? '미달' : '통과'}</td>}
                     </tr>
-                    <tr>
-                      <td colSpan={span} className="comment">
-                        <span className="comment-label">종합 심사평</span>
-                        {comment || <span className="text-[#999]">(작성 안 함)</span>}
-                      </td>
-                    </tr>
+                    {comments && (
+                      <tr>
+                        <td colSpan={span} className="comment">
+                          <span className="comment-label">종합 심사평</span>
+                          {comment || <span className="text-[#999]">(작성 안 함)</span>}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 )
               })}
