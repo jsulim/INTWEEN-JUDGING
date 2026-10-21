@@ -4,6 +4,7 @@ import { fmtScore } from '@/lib/format'
 import { groupSpans } from '@/lib/criteria-groups'
 import CriteriaHead from '@/components/CriteriaHead'
 import type { StageReport } from '@/lib/server/export'
+import RemarkCell from '@/components/admin/RemarkCell'
 
 // 심사 결과표 (출력 화면 /a/print 와 기관 열람 링크 /r 공용, 서버 컴포넌트)
 //  · SummarySheet  종합 평가표: 팀별 대항목 평균·심사위원 평균·최종 점수·순위 (심사위원별 점수 없음) + 선택: 서명란
@@ -21,12 +22,12 @@ export const SHEET_CSS = `
 /* 인쇄: @page 여백을 0 으로 해 브라우저 머리글·바닥글(날짜·제목·주소)을 없애고,
    여백은 PrintFrame 의 반복 머리·바닥 칸(쪽마다 12mm)과 좌우 패딩으로 만든다 */
 .pf { width: 100%; border-collapse: collapse; }
-.pf > thead > tr > td, .pf > tfoot > tr > td, .pf > tbody > tr > td { padding: 0; border: 0; }
+.pf td.pf-cell { padding: 0; border: 0; }
 .pf-space { height: 0; }
 @page { margin: 0; }
 @media print {
   .pf-space { height: 12mm; }
-  .pf > tbody > tr > td { padding: 0 12mm; }
+  .pf td.pf-body { padding: 0 12mm; }
   header, nav, .no-print { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }
   .sheet table { font-size: 10.5pt; }
@@ -40,9 +41,9 @@ export const SHEET_CSS = `
 export function PrintFrame({ children }: { children: ReactNode }) {
   return (
     <table className="pf">
-      <thead><tr><td><div className="pf-space" /></td></tr></thead>
-      <tbody><tr><td>{children}</td></tr></tbody>
-      <tfoot><tr><td><div className="pf-space" /></td></tr></tfoot>
+      <thead><tr><td className="pf-cell"><div className="pf-space" /></td></tr></thead>
+      <tbody><tr><td className="pf-cell pf-body">{children}</td></tr></tbody>
+      <tfoot><tr><td className="pf-cell"><div className="pf-space" /></td></tr></tfoot>
     </table>
   )
 }
@@ -191,15 +192,16 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
  * current 가 있으면 화면에는 그 심사위원만 보이고(나머지는 인쇄 때만), 인쇄는 심사위원마다 새 쪽.
  * nav 를 주면 위에 심사위원 이동(탭·이전/다음)을 붙인다.
  */
-export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref }: {
+export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref, editRemarks = false }: {
   r: StageReport; showNames: boolean; current?: number | null
   nav?: (i: number) => string
   /** 팀마다 종합 심사평 행 (기본 접힘). 화면·인쇄 같은 설정 */
   comments?: boolean
   /** 심사평 펼치기/접기 링크 (nav 옆에 표시) */
   commentsHref?: string
+  /** 관리자 화면: 비고 칸을 눌러 작성 */
+  editRemarks?: boolean
 }) {
-  const { passScore } = helpers(r)
   const criteria = r.criteria
   const judges = sortedJudges(r)
   const judgeLabel = (i: number) => `${judgeLetter(i)}위원${showNames ? ` ${judges[i].name}` : ''}`
@@ -215,7 +217,16 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
     return (ca?.blind_code ?? '').localeCompare(cb?.blind_code ?? '', 'ko') || (ca?.name ?? '').localeCompare(cb?.name ?? '', 'ko')
   })
   const cur = current == null ? null : Math.min(Math.max(current, 0), judges.length - 1)
-  const span = 2 + criteria.length + 1 + (passScore != null ? 1 : 0)
+  const span = 2 + criteria.length + 2 // 번호·팀명 + 항목 + 합계·비고
+
+  const remarkTd = (aid: string, team: string) => {
+    const text = r.remarks.get(aid) ?? null
+    return (
+      <td style={{ whiteSpace: 'pre-wrap', fontSize: '0.9em' }}>
+        {editRemarks ? <RemarkCell assignmentId={aid} remark={text} title={team} /> : text}
+      </td>
+    )
+  }
 
   if (!judges.length) return <p className="text-sm text-[#555]">배정된 심사위원이 없습니다.</p>
 
@@ -257,14 +268,14 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                 }
                 lead={n => <><th rowSpan={n}>번호</th><th rowSpan={n}>기업(팀)명</th></>}
                 cell={c => <th key={c.id} style={{ whiteSpace: 'normal' }}>{c.name}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
-                tail={n => <><th rowSpan={n}>합계</th>{passScore != null && <th rowSpan={n}>결과</th>}</>} />
+                tail={n => <><th rowSpan={n}>합계</th><th rowSpan={n} style={{ minWidth: 90 }}>비고</th></>} />
               {/* 팀마다: 점수 행 + 아래 전체 폭 종합 심사평 행 (심사평이 길어도 표가 깨지지 않게) */}
               {teamIds.filter(id => mine.has(id)).map((id, k) => {
                 const a = mine.get(id)!
                 const c = r.companies.get(id)
                 const label = <><td className="num whitespace-nowrap">{c?.blind_code ?? k + 1}</td><td className="font-semibold">{c?.name ?? '(삭제된 기업)'}</td></>
                 if (a.conflict) {
-                  return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 2} className="num text-[#777]">이해충돌 제외</td></tr></tbody>
+                  return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 3} className="num text-[#777]">이해충돌 제외</td>{remarkTd(a.id, c?.name ?? '')}</tr></tbody>
                 }
                 const total = totalOf(a.id)
                 const comment = comments ? overall.get(a.id)?.trim() : null
@@ -274,7 +285,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                       {label}
                       {criteria.map(cr => { const v = scoreOf(a.id, cr.id); return <td key={cr.id} className="num">{fmtScore(v == null ? null : Number(v))}</td> })}
                       <td className="num font-bold">{fmtScore(total)}</td>
-                      {passScore != null && <td className="num whitespace-nowrap">{total == null ? '미입력' : belowPass(total, passScore) ? '미달' : '통과'}</td>}
+                      {remarkTd(a.id, c?.name ?? '')}
                     </tr>
                     {comments && (
                       <tr>

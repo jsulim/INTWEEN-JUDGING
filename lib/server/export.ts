@@ -120,12 +120,17 @@ export async function loadStageReport(supabase: SupabaseClient, stageId: string)
     }
   }
 
-  const [{ data: program }, judges, { data: reviews }] = await Promise.all([
+  const asgIds = data.assignments.map(a => a.id)
+  const [{ data: program }, judges, { data: reviews }, { data: remarkRows }] = await Promise.all([
     supabase.from('programs').select('*').eq('id', stage.program_id).single(),
     loadJudgeDirectory(supabase, stage.program_id),
-    data.assignments.length
-      ? supabase.from('reviews').select('*').in('assignment_id', data.assignments.map(a => a.id))
+    asgIds.length
+      ? supabase.from('reviews').select('*').in('assignment_id', asgIds)
       : Promise.resolve({ data: [] as Review[] }),
+    // 관리자 비고 (assignment_remarks: 관리자·서비스 키만 읽힘, 테이블이 아직 없으면 빈 값)
+    asgIds.length
+      ? supabase.from('assignment_remarks').select('assignment_id, remark').in('assignment_id', asgIds).then(res => res, () => ({ data: null }))
+      : Promise.resolve({ data: [] as { assignment_id: string; remark: string }[] }),
   ])
 
   // 이 단계에 배정된 심사위원만 (매트릭스 열)
@@ -142,6 +147,7 @@ export async function loadStageReport(supabase: SupabaseClient, stageId: string)
     judges,
     stageJudges,
     reviews: (reviews ?? []) as Review[],
+    remarks: new Map(((remarkRows ?? []) as { assignment_id: string; remark: string }[]).map(x => [x.assignment_id, x.remark])),
   }
 }
 export type StageReport = Awaited<ReturnType<typeof loadStageReport>>
