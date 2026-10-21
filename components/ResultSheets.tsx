@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { belowPass, type CompanyResult } from '@/lib/scoring'
 import { fmtScore } from '@/lib/format'
 import { groupSpans } from '@/lib/criteria-groups'
@@ -14,7 +14,10 @@ export const SHEET_CSS = `
 @media screen { .screen-hide { display: none; } }
 .sheet table { width: 100%; border-collapse: collapse; }
 .sheet th, .sheet td { border: 1px solid #555; padding: 6px 8px; }
-.sheet th { background: #f1f1f1; font-weight: 700; text-align: center; white-space: nowrap; }
+.sheet th { background: #f1f1f1; font-weight: 700; text-align: center; white-space: nowrap; word-break: keep-all; }
+/* 평가항목 머리글: 글자 단위로 끊기지 않게 띄어쓰기·가운뎃점에서만 줄바꿈 */
+.sheet th.crit { white-space: normal; line-height: 1.3; padding: 5px 4px; }
+.sheet td { word-break: keep-all; overflow-wrap: anywhere; }
 .sheet td.num { text-align: center; font-variant-numeric: tabular-nums; }
 .sheet td.comment { white-space: pre-wrap; font-size: 0.9em; line-height: 1.55; padding: 6px 10px 8px; background: #fcfcfc; }
 .sheet th.judge-head { text-align: left; font-size: 1.15em; font-weight: 900; background: #fff; border: 0; border-bottom: 1px solid #555; padding: 4px 0 6px; }
@@ -31,6 +34,7 @@ export const SHEET_CSS = `
   header, nav, .no-print { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }
   .sheet table { font-size: 10.5pt; }
+  .sheet th.crit { font-size: 9pt; }
   .page-break { break-before: page; }
   .screen-hide { display: block !important; }
   tr, td, th, tbody.team { break-inside: avoid; }
@@ -46,6 +50,11 @@ export function PrintFrame({ children }: { children: ReactNode }) {
       <tfoot><tr><td className="pf-cell"><div className="pf-space" /></td></tr></tfoot>
     </table>
   )
+}
+
+/** 평가항목 이름: 가운뎃점·쉼표·빗금 뒤에서도 줄바꿈 가능 (keep-all 이라 그 외에는 띄어쓰기에서만) */
+function critLabel(name: string) {
+  return name.split(/(?<=[·ㆍ・,/])/).map((part, i) => <Fragment key={i}>{i > 0 && <wbr />}{part}</Fragment>)
 }
 
 /** 심사위원 기호 A·B·C… (sortedJudges 순서) */
@@ -267,7 +276,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                   </tr>
                 }
                 lead={n => <><th rowSpan={n}>번호</th><th rowSpan={n}>기업(팀)명</th></>}
-                cell={c => <th key={c.id} style={{ whiteSpace: 'normal' }}>{c.name}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
+                cell={c => <th key={c.id} className="crit">{critLabel(c.name)}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
                 tail={n => <><th rowSpan={n}>합계</th><th rowSpan={n} style={{ minWidth: 90 }}>비고</th></>} />
               {/* 팀마다: 점수 행 + 아래 전체 폭 종합 심사평 행 (심사평이 길어도 표가 깨지지 않게) */}
               {teamIds.filter(id => mine.has(id)).map((id, k) => {
