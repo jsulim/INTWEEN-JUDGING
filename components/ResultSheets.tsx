@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { belowPass, type CompanyResult } from '@/lib/scoring'
 import { fmtScore } from '@/lib/format'
 import { groupSpans } from '@/lib/criteria-groups'
@@ -17,7 +18,15 @@ export const SHEET_CSS = `
 .sheet td.comment { white-space: pre-wrap; font-size: 0.9em; line-height: 1.55; padding: 6px 10px 8px; background: #fcfcfc; }
 .sheet th.judge-head { text-align: left; font-size: 1.15em; font-weight: 900; background: #fff; border: 0; border-bottom: 1px solid #555; padding: 4px 0 6px; }
 .sheet .comment-label { display: inline-block; margin-right: 8px; font-weight: 700; color: #555; }
+/* 인쇄: @page 여백을 0 으로 해 브라우저 머리글·바닥글(날짜·제목·주소)을 없애고,
+   여백은 PrintFrame 의 반복 머리·바닥 칸(쪽마다 12mm)과 좌우 패딩으로 만든다 */
+.pf { width: 100%; border-collapse: collapse; }
+.pf > thead > tr > td, .pf > tfoot > tr > td, .pf > tbody > tr > td { padding: 0; border: 0; }
+.pf-space { height: 0; }
+@page { margin: 0; }
 @media print {
+  .pf-space { height: 12mm; }
+  .pf > tbody > tr > td { padding: 0 12mm; }
   header, nav, .no-print { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }
   .sheet table { font-size: 10.5pt; }
@@ -26,6 +35,17 @@ export const SHEET_CSS = `
   tr, td, th, tbody.team { break-inside: avoid; }
 }
 `
+
+/** 인쇄 여백 틀: SHEET_CSS 의 .pf 참고 (.sheet 바깥에 둔다) */
+export function PrintFrame({ children }: { children: ReactNode }) {
+  return (
+    <table className="pf">
+      <thead><tr><td><div className="pf-space" /></td></tr></thead>
+      <tbody><tr><td>{children}</td></tr></tbody>
+      <tfoot><tr><td><div className="pf-space" /></td></tr></tfoot>
+    </table>
+  )
+}
 
 /** 심사위원 기호 A·B·C… (sortedJudges 순서) */
 export const judgeLetter = (i: number) => String.fromCharCode(65 + i)

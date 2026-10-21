@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { loadResultShare } from '@/lib/server/result-share'
 import { loadJudgeProgress, loadStageReport } from '@/lib/server/export'
 import { EVENTS } from '@/lib/events'
-import { JudgeSheets, SHEET_CSS, SheetTitle, SummarySheet } from '@/components/ResultSheets'
+import { JudgeSheets, PrintFrame, SHEET_CSS, SheetTitle, SummarySheet } from '@/components/ResultSheets'
 import { cn } from '@/components/ui'
 import type { ViewerFile } from '@/components/judge/PdfViewer'
 import type { RequiredFile, Stage } from '@/lib/types'
@@ -91,7 +91,7 @@ export default async function ResultSharePage({ params, searchParams }: { params
 
   return (
     <div style={vars} className="min-h-screen bg-bg text-fg">
-      <style>{`${SHEET_CSS}\n@page { size: A4 portrait; margin: 12mm; }`}</style>
+      <style>{`${SHEET_CSS}\n@page { size: A4 portrait; margin: 0; }`}</style>
       <header className="no-print bg-[var(--ev-deep)] text-white">
         <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
           <p className="text-sm text-white/60">{ev ? ev.title : 'INTWEEN 심사 관리 플랫폼'}</p>
@@ -129,14 +129,16 @@ export default async function ResultSharePage({ params, searchParams }: { params
             {tab === 'files' ? (
               <ShareFiles token={share.token} teams={teams} watermark={r.program.title} />
             ) : (
-              <div className="sheet rounded-lg border border-line bg-white p-4 text-[#111] print:border-0 print:p-0">
-                <SheetTitle r={r} subtitle={tab === 'summary' ? '종합 평가표' : '심사위원별 채점 결과'} />
-                {tab === 'summary'
-                  ? <SummarySheet r={r} showNames={share.show_judge_names} signature />
-                  : <JudgeSheets r={r} showNames={share.show_judge_names} current={judgeNo} nav={i => href({ judge: i })}
-                      comments={cm} commentsHref={href({ cm: !cm })} />}
-                {tab === 'judges' && <p className="no-print mt-4 text-xs text-muted">인쇄하면 심사위원마다 한 장씩 모두 출력됩니다. 종합 심사평은 펼쳐 두면 함께, 접어 두면 빼고 인쇄됩니다.</p>}
-              </div>
+              <PrintFrame>
+                <div className="sheet rounded-lg border border-line bg-white p-4 text-[#111] print:border-0 print:p-0">
+                  <SheetTitle r={r} subtitle={tab === 'summary' ? '종합 평가표' : '심사위원별 채점 결과'} />
+                  {tab === 'summary'
+                    ? <SummarySheet r={r} showNames={share.show_judge_names} signature />
+                    : <JudgeSheets r={r} showNames={share.show_judge_names} current={judgeNo} nav={i => href({ judge: i })}
+                        comments={cm} commentsHref={href({ cm: !cm })} />}
+                  {tab === 'judges' && <p className="no-print mt-4 text-xs text-muted">인쇄하면 심사위원마다 한 장씩 모두 출력됩니다. 종합 심사평은 펼쳐 두면 함께, 접어 두면 빼고 인쇄됩니다.</p>}
+                </div>
+              </PrintFrame>
             )}
           </>
         )}

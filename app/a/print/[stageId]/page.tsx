@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireRole } from '@/lib/server/auth'
 import { loadStageReport } from '@/lib/server/export'
-import { JudgeSheets, SHEET_CSS, SheetTitle, SummarySheet } from '@/components/ResultSheets'
+import { JudgeSheets, PrintFrame, SHEET_CSS, SheetTitle, SummarySheet } from '@/components/ResultSheets'
 import PrintBar from './PrintBar'
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,7 @@ export default async function PrintSheet({ params, searchParams }: {
 
   return (
     <div className="mx-auto max-w-[1100px] text-[#111]">
-      <style>{`@page { size: A4 portrait; margin: 12mm; }${SHEET_CSS}`}</style>
+      <style>{`@page { size: A4 portrait; margin: 0; }${SHEET_CSS}`}</style>
 
       <div className="no-print">
         <PrintBar back={`/a/p/${r.stage.program_id}/results?stage=${r.stage.id}`} options={[
@@ -42,12 +42,14 @@ export default async function PrintSheet({ params, searchParams }: {
         )}
       </div>
 
-      <div className="sheet bg-white p-2">
-        <SheetTitle r={r} subtitle={mode === 'sign' ? '심사 결과 총괄표' : '심사위원별 채점표'} />
-        {mode === 'sign'
-          ? <SummarySheet r={r} showNames={showNames} signature />
-          : <JudgeSheets r={r} showNames={showNames} current={judgeNo} nav={i => href({ judge: String(i) })} comments={cm} />}
-      </div>
+      <PrintFrame>
+        <div className="sheet bg-white p-2">
+          <SheetTitle r={r} subtitle={mode === 'sign' ? '심사 결과 총괄표' : '심사위원별 채점표'} />
+          {mode === 'sign'
+            ? <SummarySheet r={r} showNames={showNames} signature />
+            : <JudgeSheets r={r} showNames={showNames} current={judgeNo} nav={i => href({ judge: String(i) })} comments={cm} />}
+        </div>
+      </PrintFrame>
     </div>
   )
 }
