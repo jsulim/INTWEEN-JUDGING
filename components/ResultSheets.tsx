@@ -297,7 +297,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
         )
         const signer = (
           <>
-            {todayKst()} &nbsp;&nbsp; 심사위원 <span className="inline-block min-w-[7em] border-b border-[#555] text-center font-semibold">{showNames ? j.name : ''}</span>
+            {todayKst()} &nbsp;&nbsp; 심사위원 : <span className="inline-block min-w-[7em] text-center font-semibold">{showNames ? j.name : ''}</span> (서명)
           </>
         )
         return (
@@ -340,11 +340,11 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                 </table>
                 <div className="page-sign">
                   <span className="text-[#555]">{judgeLabel(i)} · {p + 1} / {pages.length}쪽</span>
-                  <span>{signer} &nbsp;&nbsp; 서명 : <span className="inline-block w-[7em]" /> (인)</span>
+                  <span>{signer}</span>
                 </div>
               </div>
             ))}
-            <p className="screen-sign mt-6 text-right">{signer} &nbsp;(서명)</p>
+            <p className="screen-sign mt-6 text-right">{signer}</p>
           </section>
         )
       })}
