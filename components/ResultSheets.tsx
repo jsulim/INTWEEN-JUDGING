@@ -192,15 +192,15 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
  * current 가 있으면 화면에는 그 심사위원만 보이고(나머지는 인쇄 때만), 인쇄는 심사위원마다 새 쪽.
  * nav 를 주면 위에 심사위원 이동(탭·이전/다음)을 붙인다.
  */
-export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref, editRemarks = false }: {
+export function JudgeSheets({ r, showNames, current = null, nav, comments = false, commentsHref, editRemarks }: {
   r: StageReport; showNames: boolean; current?: number | null
   nav?: (i: number) => string
   /** 팀마다 종합 심사평 행 (기본 접힘). 화면·인쇄 같은 설정 */
   comments?: boolean
   /** 심사평 펼치기/접기 링크 (nav 옆에 표시) */
   commentsHref?: string
-  /** 관리자 화면: 비고 칸을 눌러 작성 */
-  editRemarks?: boolean
+  /** 비고 칸을 눌러 작성: 저장 API 주소 (없으면 읽기만) */
+  editRemarks?: string
 }) {
   const criteria = r.criteria
   const judges = sortedJudges(r)
@@ -219,11 +219,11 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
   const cur = current == null ? null : Math.min(Math.max(current, 0), judges.length - 1)
   const span = 2 + criteria.length + 2 // 번호·팀명 + 항목 + 합계·비고
 
-  const remarkTd = (aid: string, team: string) => {
+  const remarkTd = (aid: string, team: string, judge: string) => {
     const text = r.remarks.get(aid) ?? null
     return (
       <td style={{ whiteSpace: 'pre-wrap', fontSize: '0.9em' }}>
-        {editRemarks ? <RemarkCell assignmentId={aid} remark={text} title={team} /> : text}
+        {editRemarks ? <RemarkCell assignmentId={aid} remark={text} title={team} judge={judge} endpoint={editRemarks} /> : text}
       </td>
     )
   }
@@ -275,7 +275,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                 const c = r.companies.get(id)
                 const label = <><td className="num whitespace-nowrap">{c?.blind_code ?? k + 1}</td><td className="font-semibold">{c?.name ?? '(삭제된 기업)'}</td></>
                 if (a.conflict) {
-                  return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 3} className="num text-[#777]">이해충돌 제외</td>{remarkTd(a.id, c?.name ?? '')}</tr></tbody>
+                  return <tbody key={id} className="team"><tr>{label}<td colSpan={span - 3} className="num text-[#777]">이해충돌 제외</td>{remarkTd(a.id, c?.name ?? '', judgeLabel(i))}</tr></tbody>
                 }
                 const total = totalOf(a.id)
                 const comment = comments ? overall.get(a.id)?.trim() : null
@@ -285,7 +285,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                       {label}
                       {criteria.map(cr => { const v = scoreOf(a.id, cr.id); return <td key={cr.id} className="num">{fmtScore(v == null ? null : Number(v))}</td> })}
                       <td className="num font-bold">{fmtScore(total)}</td>
-                      {remarkTd(a.id, c?.name ?? '')}
+                      {remarkTd(a.id, c?.name ?? '', judgeLabel(i))}
                     </tr>
                     {comments && (
                       <tr>

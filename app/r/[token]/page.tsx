@@ -135,7 +135,7 @@ export default async function ResultSharePage({ params, searchParams }: { params
                   {tab === 'summary'
                     ? <SummarySheet r={r} showNames={share.show_judge_names} signature />
                     : <JudgeSheets r={r} showNames={share.show_judge_names} current={judgeNo} nav={i => href({ judge: i })}
-                        comments={cm} commentsHref={href({ cm: !cm })} />}
+                        comments={cm} commentsHref={href({ cm: !cm })} editRemarks={`/api/r/${share.token}/remark`} />}
                   {tab === 'judges' && <p className="no-print mt-4 text-xs text-muted">인쇄하면 심사위원마다 한 장씩 모두 출력됩니다. 종합 심사평은 펼쳐 두면 함께, 접어 두면 빼고 인쇄됩니다.</p>}
                 </div>
               </PrintFrame>
