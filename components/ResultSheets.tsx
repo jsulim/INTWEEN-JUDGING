@@ -90,7 +90,7 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
           <tr>
             <th>기업(팀)명</th>
             {judges.map((j, i) => <th key={j.id}>{judgeLetter(i)}위원</th>)}
-            <th>{hasBonus ? '심사위원 평균' : '평균'}</th>
+            <th>{hasBonus ? '심사위원 평균' : <>최종 점수<div className="text-xs font-normal">(심사위원 평균)</div></>}</th>
             {hasBonus && <th>가감점</th>}
             {hasBonus && <th>최종 점수</th>}
             {passScore != null && <th>결과</th>}
