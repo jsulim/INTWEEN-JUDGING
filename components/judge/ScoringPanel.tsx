@@ -281,34 +281,61 @@ export default function ScoringPanel(props: ScoringPanelProps) {
 
   const inputH = big ? 'h-14 text-2xl' : 'h-11 text-lg'
 
-  // 대항목이 있으면 대항목 한 묶음씩 넘겨 가며 입력 (위 단계 탭 · 아래 이전/다음). 마지막 단계는 종합 심사평
+  // 대항목이 있으면 위에 대항목 탭(바로가기 + 소계)을 두고, 항목은 한 화면에 이어서 스크롤하며 입력한다.
+  // 탭을 누르면 그 대항목으로 이동하고, 스크롤하면 지금 보고 있는 대항목 탭이 켜진다. 마지막 탭은 종합 심사평
   const groups = criteria.some(c => c.group_name) ? [...new Set(criteria.map(c => c.group_name ?? ''))] : []
   const stepped = groups.length > 1
   const steps = stepped ? [...groups.map(g => ({ key: g, label: g || '기타' })), { key: '__overall', label: '종합 심사평' }] : []
   const [step, setStep] = useState(0)
-  const cur = steps[step]
-  const showCriterion = (c: Criterion) => !stepped || (c.group_name ?? '') === cur?.key
-  const showOverall = !stepped || cur?.key === '__overall'
   const stepDone = (k: string) => k === '__overall'
     ? !props.overallRequired || !!overall.trim()
     : criteria.filter(c => (c.group_name ?? '') === k).every(c => !missing.some(m => m.startsWith(criterionLabel(c) + ' ')))
+  const headRef = useRef<HTMLDivElement>(null)
+  const sectionId = (i: number) => `sec-${assignmentId}-${i}`
+  // 오른쪽 열이 따로 스크롤되는 경우가 있어 가장 가까운 스크롤 영역을 찾는다 (없으면 창)
+  const scroller = useCallback((): HTMLElement | null => {
+    let el = headRef.current?.parentElement ?? null
+    while (el) {
+      const oy = getComputedStyle(el).overflowY
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return el
+      el = el.parentElement
+    }
+    return null
+  }, [])
   const go = (i: number) => {
+    const el = document.getElementById(sectionId(i))
+    if (!el) return
+    const top = headRef.current?.getBoundingClientRect().bottom ?? 0
+    const dy = el.getBoundingClientRect().top - top - 8
+    const sc = scroller()
+    if (sc) sc.scrollBy({ top: dy, behavior: 'smooth' })
+    else window.scrollBy({ top: dy, behavior: 'smooth' })
     setStep(i)
-    // 패널 맨 위로 (오른쪽 열이 따로 스크롤된다)
-    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ block: 'nearest' }))
   }
-  const panelRef = useRef<HTMLDivElement>(null)
-  // Enter: 다음 점수 칸으로. 대항목의 마지막 칸이면 다음 단계로 넘어가 첫 칸(마지막 단계면 종합 심사평)에 커서를 둔다
+  useEffect(() => {
+    if (!stepped) return
+    const sc = scroller()
+    const target: HTMLElement | Window = sc ?? window
+    const onScroll = () => {
+      const top = (headRef.current?.getBoundingClientRect().bottom ?? 0) + 24
+      let cur = 0
+      steps.forEach((_, i) => { const el = document.getElementById(sectionId(i)); if (el && el.getBoundingClientRect().top <= top) cur = i })
+      // 맨 아래까지 내리면 마지막(종합 심사평)
+      const atEnd = sc ? sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4 : window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4
+      setStep(atEnd ? steps.length - 1 : cur)
+    }
+    target.addEventListener('scroll', onScroll, { passive: true })
+    return () => target.removeEventListener('scroll', onScroll)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepped, steps.length, scroller, assignmentId])
+  // Enter: 다음 점수 칸으로 (마지막 칸이면 종합 심사평)
   const focusNext = (c: Criterion) => {
     const i = criteria.findIndex(x => x.id === c.id)
     const nx = criteria[i + 1]
-    const focus = (id: string) => setTimeout(() => (document.getElementById(id) as HTMLElement | null)?.focus(), 30)
-    if (nx && showCriterion(nx)) return focus(`score-${assignmentId}-${nx.id}`)
-    if (stepped && step < steps.length - 1) {
-      go(step + 1)
-      return focus(nx ? `score-${assignmentId}-${nx.id}` : `overall-${assignmentId}`)
-    }
-    if (!nx) focus(`overall-${assignmentId}`)
+    const id = nx ? `score-${assignmentId}-${nx.id}` : `overall-${assignmentId}`
+    const el = document.getElementById(id) as HTMLElement | null
+    el?.focus()
+    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
   // 항목 심사평(선택)은 눌러야 펼친다 — 화면 높이를 줄이려고
   const [openComment, setOpenComment] = useState<Record<string, boolean>>({})
@@ -316,8 +343,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
   return (
     <div className="flex flex-col">
       {/* 상단: 합계·저장 상태 */}
-      <div ref={panelRef} aria-hidden />
-      <div className="sticky top-0 z-10 border-b border-line bg-card">
+      <div ref={headRef} className="sticky top-0 z-10 border-b border-line bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
         <div className="flex items-baseline gap-2">
           <span className="text-sm text-muted">합계</span>
@@ -361,13 +387,13 @@ export default function ScoringPanel(props: ScoringPanelProps) {
         {criteria.length === 0 && <Alert tone="highlight">평가항목이 아직 설정되지 않았습니다.</Alert>}
 
         {criteria.map((c, i) => {
-          if (!showCriterion(c)) return null
-          // 대항목이 바뀌는 첫 항목 위에 대항목 머리(배점·소계)를 붙인다
-          const groupHead = !stepped && c.group_name && criteria[i - 1]?.group_name !== c.group_name ? (() => {
+          // 대항목이 바뀌는 첫 항목 위에 대항목 머리(배점·소계)를 붙인다 (탭의 이동 위치)
+          const groupHead = c.group_name && criteria[i - 1]?.group_name !== c.group_name ? (() => {
             const items = criteria.filter(x => x.group_name === c.group_name)
             const sub = items.reduce((a, x) => a + (validNum(vals[x.id]?.score ?? '', x.max_score) ?? 0), 0)
             return (
-              <div className={cn('flex items-baseline justify-between gap-2 border-b-2 border-primary/30 pb-1', i > 0 && 'mt-2')}>
+              <div id={stepped ? sectionId(groups.indexOf(c.group_name)) : undefined}
+                className={cn('flex items-baseline justify-between gap-2 border-b-2 border-primary/30 pb-1', i > 0 && 'mt-2')}>
                 <span className="text-lg font-black text-primary">{c.group_name}</span>
                 <span className="tabular text-sm text-muted">소계 <b className="text-fg">{fmtScore(sub)}</b> / {fmtScore(items.reduce((a, x) => a + x.max_score, 0))}점</span>
               </div>
@@ -436,8 +462,7 @@ export default function ScoringPanel(props: ScoringPanelProps) {
           )
         })}
 
-        {showOverall && <>
-        <section className="rounded-lg border border-line bg-card p-4">
+        <section id={stepped ? sectionId(steps.length - 1) : undefined} className="rounded-lg border border-line bg-card p-4">
           <div className="mb-2 font-bold">
             종합 심사평{props.overallRequired && <span className="ml-1 text-sm font-semibold text-danger">(필수)</span>}
           </div>
@@ -458,17 +483,6 @@ export default function ScoringPanel(props: ScoringPanelProps) {
             <Button variant="ghost" size="sm" className="text-muted" onClick={() => { setReason(''); setReportErr(null); setConflictOpen(true) }}>
               이해관계 있음 신고
             </Button>
-          </div>
-        )}
-        </>}
-
-        {stepped && (
-          <div className="flex items-center justify-between gap-2">
-            <Button variant="outline" disabled={step === 0} onClick={() => go(step - 1)}>← {steps[step - 1]?.label ?? '이전'}</Button>
-            <span className="tabular text-xs text-muted">{step + 1} / {steps.length}</span>
-            {step < steps.length - 1
-              ? <Button variant={stepDone(cur.key) ? 'primary' : 'outline'} onClick={() => go(step + 1)}>{steps[step + 1].label} →</Button>
-              : <span className="w-24 text-right text-xs text-muted">{missing.length ? `미입력 ${missing.length}` : '모두 입력함'}</span>}
           </div>
         )}
       </div>
