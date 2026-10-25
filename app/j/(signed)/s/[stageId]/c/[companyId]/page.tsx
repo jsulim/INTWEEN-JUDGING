@@ -40,11 +40,13 @@ export default async function EvaluatePage({ params }: { params: { stageId: stri
   // 설정에 없는 파일은 발표자료 → 사업계획서 순으로 뒤에 붙인다
   const slots = d.stage.required_files ?? []
   const order = (t: string) => { const i = slots.findIndex(f => f.type === t); return i >= 0 ? i : 100 + (t === 'deck' ? 0 : t === 'plan' ? 1 : 2) }
+  // 사업계획서는 한 가지만 보여 준다: 사업계획서(후)가 있으면 그것만, 없으면 (전)을. 이름은 '사업계획서'로 통일
   const filesOf = (companyId: string): ViewerFile[] => ((subs ?? []) as JudgeSubmissionRow[])
     .filter(s => s.company_id === companyId)
+    .filter((s, _, all) => s.file_type !== 'plan_before' || !all.some(x => x.company_id === companyId && x.file_type === 'plan_after'))
     .sort((a, b) => order(a.file_type) - order(b.file_type) || a.file_type.localeCompare(b.file_type))
     .map(s => ({ submission_id: s.submission_id, file_type: s.file_type, file_name: s.file_name, version: s.version, viewable: s.viewable,
-      label: slots.find(f => f.type === s.file_type)?.label }))
+      label: s.file_type === 'plan_before' || s.file_type === 'plan_after' ? '사업계획서' : slots.find(f => f.type === s.file_type)?.label }))
   const files = row.conflict ? [] : filesOf(row.company_id)
   const review = d.reviews.get(row.assignment_id)
 

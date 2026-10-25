@@ -1,10 +1,11 @@
 'use client'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { Alert, Button, Field, Input } from '@/components/ui'
 import AuthFrame from '@/components/AuthFrame'
+import { EVENT_JOIN } from '@/lib/events/hosts'
 
 // P-01 로그인: 이메일+비밀번호, 역할에 따라 각 홈으로 리다이렉트
 function LoginForm() {
@@ -14,6 +15,12 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const reason = params.get('reason')
+  // 대회 전용 주소(예: uljin-ideathon.sasurae.kr)에서는 그 대회의 심사위원 가입 신청으로 이어지는 링크를 보여 준다
+  const [joinHref, setJoinHref] = useState<string | null>(null)
+  useEffect(() => {
+    const programId = EVENT_JOIN[window.location.host]
+    if (programId) setJoinHref(`/join/${programId}`)
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -45,8 +52,12 @@ function LoginForm() {
       <Field label="이메일"><Input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} /></Field>
       <Field label="비밀번호"><Input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></Field>
       <Button type="submit" className="w-full" size="lg" disabled={busy}>{busy ? '확인 중…' : '로그인'}</Button>
-      <div className="text-center text-sm">
+      <div className="flex items-center justify-center gap-3 text-sm">
         <Link href="/reset-password" className="text-muted hover:text-fg">비밀번호를 잊으셨나요?</Link>
+        {joinHref && <>
+          <span className="text-line" aria-hidden>|</span>
+          <Link href={joinHref} className="font-semibold text-primary hover:underline">심사위원 회원가입</Link>
+        </>}
       </div>
     </form>
   )
