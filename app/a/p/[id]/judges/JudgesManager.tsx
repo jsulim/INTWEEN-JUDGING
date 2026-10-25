@@ -45,6 +45,19 @@ function JudgeRow({ j, programId, templates }: { j: JudgeView; programId: string
       setNotice(r.message)
     })
   }
+  async function reset() {
+    if (!confirm(`${j.name}님의 평가를 처음 상태로 초기화합니다.
+
+· 지워지는 것: 점수, 심사평, 이해충돌 신고, 최종 제출(서명본), 동의서 서명
+· 그대로인 것: 계정, 배정, 수당 지급 정보
+· 확정·결과공개된 단계는 건드리지 않습니다.
+
+되돌릴 수 없습니다. 진행할까요?`)) return
+    await run(async () => {
+      const r = await api<{ scores: number; assignments: number; submissions: number; consents: number; skipped_stages: number }>('/api/admin/judges/reset', { body: { judge_id: j.id } })
+      setNotice(`초기화 완료 · 점수 ${r.scores}개, 최종 제출 ${r.submissions}건, 동의서 ${r.consents}건 삭제${r.skipped_stages ? ` · 확정된 단계 ${r.skipped_stages}개는 그대로 (동의서도 유지)` : ''}`)
+    })
+  }
   async function remove() {
     if (!confirm(`${j.name}님을 이 프로그램에서 제외합니다.\n배정·점수·심사평·서명 기록이 모두 삭제됩니다. 되돌릴 수 없습니다.`)) return
     await run(async () => { must(await supabaseBrowser().from('judges').delete().eq('id', j.id)) })
@@ -104,6 +117,7 @@ function JudgeRow({ j, programId, templates }: { j: JudgeView; programId: string
               <Button size="sm" variant="ghost" onClick={toggleChair} disabled={busy}>{j.is_chair ? '위원장 해제' : '위원장 지정'}</Button>
               {!j.joined && <Button size="sm" variant="ghost" onClick={reinvite} disabled={busy}>재발송</Button>}
               <Button size="sm" variant="ghost" onClick={() => setEdit(true)}>수정</Button>
+              <Button size="sm" variant="ghost" className="text-danger" onClick={reset} disabled={busy}>평가 초기화</Button>
               <Button size="sm" variant="ghost" className="text-danger" onClick={remove} disabled={busy}>삭제</Button>
             </>
           )}
