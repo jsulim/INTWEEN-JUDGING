@@ -79,11 +79,14 @@ export default async function ResultSharePage({ params, searchParams }: { params
       : { data: [] }
     teams = (entries ?? []).map(e => {
       const c = r.companies.get(e.company_id as string)
-      const files: ViewerFile[] = (subs ?? []).filter(s => s.entry_id === e.id)
+      // 심사위원 화면과 같게: 사업계획서는 (후)가 있으면 그것만, 이름은 '사업계획서'
+      const mine = (subs ?? []).filter(s => s.entry_id === e.id)
+      const files: ViewerFile[] = mine
+        .filter(s => s.file_type !== 'plan_before' || !mine.some(x => x.file_type === 'plan_after'))
         .sort((a, b) => order(a.file_type) - order(b.file_type))
         .map(s => ({
           submission_id: s.id, file_type: s.file_type, file_name: s.file_name, version: s.version,
-          viewable: !!s.pdf_path || /\.pdf$/i.test(s.storage_path), label: slots.find(f => f.type === s.file_type)?.label,
+          viewable: !!s.pdf_path || /\.pdf$/i.test(s.storage_path), label: s.file_type === 'plan_before' || s.file_type === 'plan_after' ? '사업계획서' : slots.find(f => f.type === s.file_type)?.label,
         }))
       return { id: e.company_id as string, name: c?.name ?? '(삭제된 팀)', code: c?.blind_code ?? null, files }
     }).sort((a, b) => (a.code ?? '').localeCompare(b.code ?? '', 'ko') || a.name.localeCompare(b.name, 'ko'))
