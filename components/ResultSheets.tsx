@@ -32,6 +32,8 @@ export const SHEET_CSS = `
 .page-sign { display: none; }
 @media screen { .print-only { display: none; } }
 @media screen { .jpage.cont thead { display: none; } }
+/* 쪽마다 따로 그리는 표의 칸 너비를 같게 (내용에 따라 칸이 어긋나지 않게) */
+.sheet table.jtable { table-layout: fixed; }
 @media print {
   .jpage { min-height: 262mm; display: flex; flex-direction: column; }
   .page-sign { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 10mm; font-size: 10.5pt; }
@@ -301,6 +303,15 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
             cell={c => <th key={c.id} className="crit">{critLabel(c.name)}<div className="text-xs font-normal">{fmtScore(Number(c.max_score))}</div></th>}
             tail={n => <><th rowSpan={n}>합계</th><th rowSpan={n} style={{ minWidth: 90 }}>비고</th></>} />
         )
+        // 번호·기업명·합계·비고 고정, 나머지는 평가항목이 나눠 쓴다
+        const critW = (100 - 7 - 13 - 6 - 10) / Math.max(criteria.length, 1)
+        const cols = (
+          <colgroup>
+            <col style={{ width: '7%' }} /><col style={{ width: '13%' }} />
+            {criteria.map(c => <col key={c.id} style={{ width: `${critW}%` }} />)}
+            <col style={{ width: '6%' }} /><col style={{ width: '10%' }} />
+          </colgroup>
+        )
         const signer = (
           <>
             {todayKst()} &nbsp;&nbsp; 심사위원 : <span className="inline-block min-w-[7em] text-center font-semibold">{showNames ? j.name : ''}</span> (서명)
@@ -311,7 +322,8 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
             {pages.map((chunk, p) => (
               <div key={p} className={`jpage ${p > 0 ? 'cont' : ''} ${i > 0 || p > 0 ? 'page-break' : ''}`}>
                 {title && <div className="print-only">{title}</div>}
-                <table>
+                <table className="jtable">
+                  {cols}
                   {head}
                   {/* 팀마다: 점수 행 + 아래 전체 폭 종합 심사평 행 (심사평이 길어도 표가 깨지지 않게) */}
                   {chunk.map(id => {
