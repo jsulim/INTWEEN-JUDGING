@@ -155,6 +155,12 @@ export function SummarySheet({ r, showNames, signature }: { r: StageReport; show
               </tr>
             )
           })}
+          {r.withdrawn.map(w => (
+            <tr key={w.company_id}>
+              <td className="font-semibold">{w.name}</td>
+              <td colSpan={judges.length + (hasBonus ? 3 : 1) + (passScore != null ? 1 : 0) + 1} className="text-center font-bold">포기</td>
+            </tr>
+          ))}
         </tbody>
       </table>
       {/* 화면 전용: 대항목별 평균 (인쇄하지 않음) */}

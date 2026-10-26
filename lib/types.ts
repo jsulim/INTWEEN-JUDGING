@@ -125,6 +125,7 @@ export interface StageEntry {
   company_id: string
   result: EntryResult
   eligibility: Eligibility
+  withdrawn?: boolean // 발표 포기 (심사 제외, 결과표에 '포기' 표시)
 }
 
 export interface Submission {

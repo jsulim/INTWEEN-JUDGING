@@ -41,6 +41,7 @@ export default async function ResultsPage({ params, searchParams }: { params: { 
     stage: report.stage,
     criteria: report.criteria.map(c => ({ id: c.id, name: c.name, max_score: Number(c.max_score), min_pass_score: c.min_pass_score == null ? null : Number(c.min_pass_score), group_name: c.group_name ?? null })),
     results: report.results,
+    withdrawn: report.withdrawn,
     companies: Object.fromEntries([...report.companies.entries()].map(([id, c]) => [id, {
       name: c.name, blind_code: c.blind_code, result: entryOf.get(id)?.result ?? 'pending', in_next: nextEntryIds.has(id),
     }])),

@@ -27,8 +27,12 @@ export async function loadStageResults(supabase: SupabaseClient, stageId: string
       : Promise.resolve({ data: [] as { entry_id: string; rule_id: string; approved_at: string | null; rejected: boolean }[] }),
   ])
 
-  // 부적격 처리된 기업은 심사 대상에서 제외
-  const activeEntries = ((entries ?? []) as (StageEntry & { companies: Company })[]).filter(e => e.eligibility !== 'ineligible')
+  // 부적격·포기 기업은 심사 대상에서 제외. 포기 기업은 결과표 맨 아래에 '포기'로만 표시한다
+  const allEntries = (entries ?? []) as (StageEntry & { companies: Company })[]
+  const activeEntries = allEntries.filter(e => e.eligibility !== 'ineligible' && !e.withdrawn)
+  const withdrawn = allEntries.filter(e => e.withdrawn && e.companies)
+    .map(e => ({ company_id: e.company_id, name: e.companies.name, blind_code: e.companies.blind_code }))
+    .sort((a, b) => (a.blind_code ?? a.name).localeCompare(b.blind_code ?? b.name, 'ko', { numeric: true }))
   const companyOfEntry = new Map(activeEntries.map(e => [e.id, e.company_id]))
   const ruleMap = new Map((rules ?? []).map(r => [r.id, r]))
   const bonuses = (entryBonuses ?? [])
@@ -53,6 +57,7 @@ export async function loadStageResults(supabase: SupabaseClient, stageId: string
     assignments: (assignments ?? []) as Assignment[],
     scores: scores ?? [],
     results,
+    withdrawn,
     unapprovedBonusCount: bonuses.filter(b => !b.approved).length,
   }
 }

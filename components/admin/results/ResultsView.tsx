@@ -18,6 +18,7 @@ export interface ResultsViewProps {
   stage: Stage
   criteria: { id: string; name: string; max_score: number; min_pass_score: number | null; group_name?: string | null }[]
   results: CompanyResult[]
+  withdrawn: { company_id: string; name: string; blind_code: string | null }[]
   companies: Record<string, { name: string; blind_code: string | null; result: EntryResult; in_next: boolean }>
   judges: { id: string; name: string; affiliation: string | null; is_chair: boolean }[]
   assignments: { id: string; judge_id: string; company_id: string; conflict: boolean; conflict_reason: string | null }[]
@@ -273,6 +274,15 @@ export default function ResultsView(p: ResultsViewProps) {
                   </tr>
                 )
               })}
+              {p.withdrawn.map(w => (
+                <tr key={w.company_id} className="text-muted">
+                  {locked && <td />}
+                  <td className="font-bold">포기</td>
+                  <td className="tabular">{w.blind_code ?? ''}</td>
+                  <td className="font-semibold">{w.name}</td>
+                  <td colSpan={stage.normalize ? 7 : 6} className="text-sm">발표 포기 · 심사 제외</td>
+                </tr>
+              ))}
             </tbody>
           </Table>
         )}

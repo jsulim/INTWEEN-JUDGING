@@ -209,6 +209,7 @@ export async function buildResultsWorkbook(r: StageReport) {
     })
     if (x.rank === 1) row.eachCell(cell => { cell.fill = TOP_FILL })
   }
+  for (const w of r.withdrawn) ws.addRow({ rank: '포기', code: w.blind_code ?? '', name: w.name, note: '발표 포기 · 심사 제외' })
   for (const k of ['raw', 'norm', 'bonus', 'final']) ws.getColumn(k).numFmt = '0.000'
   ws.addRow([])
   ws.addRow([`${r.program.title} · ${stage.name}`])
