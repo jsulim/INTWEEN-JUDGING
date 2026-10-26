@@ -1,15 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { clearPdfCache } from '@/lib/pdf-cache'
 import { supabaseBrowser } from '@/lib/supabase/client'
 import { cn } from '@/components/ui'
 import { useBrand } from '@/components/Brand'
 
 export interface NavItem { href: string; label: string; exact?: boolean }
-
-const IDLE_MS = 30 * 60 * 1000 // 30분 무동작 시 자동 로그아웃 (4-1 보안)
 
 export function useLogout() {
   const router = useRouter()
@@ -18,31 +16,6 @@ export function useLogout() {
     router.replace(reason ? `/login?reason=${reason}` : '/login')
     router.refresh()
   }
-}
-
-function IdleLogout() {
-  const logout = useLogout()
-  const timer = useRef<ReturnType<typeof setTimeout>>()
-  useEffect(() => {
-    const reset = () => {
-      clearTimeout(timer.current)
-      try { localStorage.setItem('intween:lastActive', String(Date.now())) } catch {}
-      timer.current = setTimeout(() => logout('idle'), IDLE_MS)
-    }
-    // 다른 탭에서의 활동도 반영
-    const onStorage = (e: StorageEvent) => { if (e.key === 'intween:lastActive') reset() }
-    const events = ['mousemove', 'keydown', 'pointerdown', 'scroll', 'touchstart']
-    events.forEach(e => window.addEventListener(e, reset, { passive: true }))
-    window.addEventListener('storage', onStorage)
-    reset()
-    return () => {
-      clearTimeout(timer.current)
-      events.forEach(e => window.removeEventListener(e, reset))
-      window.removeEventListener('storage', onStorage)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  return null
 }
 
 export default function AppShell({ area, nav, userName, children, wide }:
@@ -55,7 +28,6 @@ export default function AppShell({ area, nav, userName, children, wide }:
   const active = (n: NavItem) => (n.exact ? pathname === n.href : pathname === n.href || pathname.startsWith(n.href + '/'))
   return (
     <div className="min-h-screen">
-      <IdleLogout />
       <header className="sticky top-0 z-30 bg-primary text-primary-fg print:hidden">
         <div className={cn('mx-auto flex h-14 items-center gap-4 px-4', wide ? 'max-w-[1600px]' : 'max-w-7xl')}>
           <Link href="/home" className="flex shrink-0 items-center gap-2">

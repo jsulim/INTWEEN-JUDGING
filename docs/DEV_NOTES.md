@@ -8,7 +8,7 @@
 judging/
   app/                 Next.js App Router (화면 + app/api Route Handler)
   components/ui        Button·Input·Card·Badge·Table 등 공용 UI (shadcn 스타일, 브랜드 테마 변수)
-  components/          AppShell(헤더·내비·30분 자동 로그아웃), StatusBadges, ProgramNav …
+  components/          AppShell(헤더·내비), StatusBadges, ProgramNav …
   lib/types.ts         DB 행 타입
   lib/scoring.ts       최종 점수 산정 (과락→집계/정규화/최고·최저 제외→가감점→동점) — 순수 함수
   lib/format.ts        날짜(KST)·D-day·상태 라벨
