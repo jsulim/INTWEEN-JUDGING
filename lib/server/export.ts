@@ -90,8 +90,12 @@ export async function loadJudgeDirectory(supabase: SupabaseClient, programId: st
     const p = pm.get(j.user_id)
     return { id: j.id, user_id: j.user_id, name: p?.name || p?.email || '(이름 없음)', email: p?.email ?? null, phone: p?.phone ?? null,
       affiliation: j.affiliation, is_chair: j.is_chair }
-  })
+  }).sort(byJudgeName)
 }
+
+/** 심사위원 순서: 위원장 먼저, 나머지 가나다순 (결과표·채점표의 A·B·C 위원 순서와 같다) */
+export const byJudgeName = (a: { name: string; is_chair: boolean }, b: { name: string; is_chair: boolean }) =>
+  Number(b.is_chair) - Number(a.is_chair) || a.name.localeCompare(b.name, 'ko')
 
 /**
  * 단계 결과 (확정 단계는 스냅샷, 아니면 실시간) + 심사평·심사위원 정보.

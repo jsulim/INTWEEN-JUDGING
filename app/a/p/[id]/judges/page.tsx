@@ -68,7 +68,7 @@ export default async function JudgesPage({ params }: { params: { id: string } })
         company: c.companies?.name ?? '', stage: c.stages?.name ?? '', reason: c.conflict_reason, reported_at: c.conflict_reported_at,
       })),
     }
-  })
+  }).sort((a, b) => Number(b.is_chair) - Number(a.is_chair) || (a.name || a.email || '').localeCompare(b.name || b.email || '', 'ko'))
 
   return (
     <>

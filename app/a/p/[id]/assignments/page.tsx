@@ -40,7 +40,8 @@ export default async function AssignmentsPage({ params, searchParams }: { params
       <AssignmentMatrix
         stage={stage}
         companies={ents.map(e => ({ id: e.company_id, name: e.companies.name, blind_code: e.companies.blind_code, field: e.companies.field, eligibility: e.eligibility }))}
-        judges={judges.map(j => ({ id: j.id, name: profs.get(j.user_id)?.name || profs.get(j.user_id)?.email || '(이름 없음)', is_chair: j.is_chair, expertise: j.expertise }))}
+        judges={judges.map(j => ({ id: j.id, name: profs.get(j.user_id)?.name || profs.get(j.user_id)?.email || '(이름 없음)', is_chair: j.is_chair, expertise: j.expertise }))
+          .sort((a, b) => Number(b.is_chair) - Number(a.is_chair) || a.name.localeCompare(b.name, 'ko'))}
         assignments={assignments}
         scoreCount={scoreCount}
       />
