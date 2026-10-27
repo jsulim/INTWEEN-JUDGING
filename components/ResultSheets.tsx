@@ -28,7 +28,7 @@ export const SHEET_CSS = `
 .pf td.pf-cell { padding: 0; border: 0; }
 .pf-space { height: 0; }
 @page { margin: 0; }
-/* 심사위원 개별 평가표 쪽: 화면에서는 이어진 표, 인쇄에서는 기업 2개씩 한 쪽 + 오른쪽 아래 서명란 */
+/* 심사위원 개별 평가표 쪽: 심사위원 한 명 = 인쇄 한 쪽 + 오른쪽 아래 서명란 */
 .page-sign { display: none; }
 @media screen { .print-only { display: none; } }
 @media screen { .jpage.cont thead { display: none; } }
@@ -61,8 +61,8 @@ export function PrintFrame({ children }: { children: ReactNode }) {
   )
 }
 
-/** 심사위원 개별 평가표: 인쇄 1쪽당 기업 수 */
-const PER_PAGE = 2
+/** 심사위원 개별 평가표: 인쇄 1쪽당 기업 수 (null = 심사위원 한 명을 한 쪽에) */
+const PER_PAGE: number | null = null
 
 /** 평가항목 이름: 가운뎃점·쉼표·빗금 뒤에서도 줄바꿈 가능 (keep-all 이라 그 외에는 띄어쓰기에서만) */
 const WORD_JOINER = String.fromCharCode(0x2060)
@@ -287,8 +287,9 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
         const mine = new Map(r.assignments.filter(a => a.judge_id === j.id).map(a => [a.company_id, a]))
         const hidden = cur != null && i !== cur
         const ids = teamIds.filter(id => mine.has(id))
-        // 인쇄 1쪽 = 기업 2개 + 쪽마다 오른쪽 아래 서명란. 화면에서는 이어진 표 하나처럼 보인다
-        const pages = Array.from({ length: Math.max(1, Math.ceil(ids.length / PER_PAGE)) }, (_, p) => ids.slice(p * PER_PAGE, (p + 1) * PER_PAGE))
+        // 인쇄: 심사위원 한 명 = 한 쪽 + 오른쪽 아래 서명란 (PER_PAGE 를 정하면 그 수만큼 나눠 쪽마다 서명란)
+        const per = PER_PAGE ?? Math.max(ids.length, 1)
+        const pages = Array.from({ length: Math.max(1, Math.ceil(ids.length / per)) }, (_, p) => ids.slice(p * per, (p + 1) * per))
         const head = (
           <CriteriaHead criteria={criteria}
             top={
@@ -357,7 +358,7 @@ export function JudgeSheets({ r, showNames, current = null, nav, comments = fals
                   })}
                 </table>
                 <div className="page-sign">
-                  <span className="text-[#555]">{judgeLabel(i)} · {p + 1} / {pages.length}쪽</span>
+                  <span className="text-[#555]">{judgeLabel(i)}{pages.length > 1 && ` · ${p + 1} / ${pages.length}쪽`}</span>
                   <span>{signer}</span>
                 </div>
               </div>

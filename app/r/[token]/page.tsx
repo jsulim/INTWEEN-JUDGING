@@ -138,7 +138,7 @@ export default async function ResultSharePage({ params, searchParams }: { params
                     ? <><SheetTitle r={r} subtitle="종합 평가표" /><SummarySheet r={r} showNames={share.show_judge_names} signature /></>
                     : <JudgeSheets title={<SheetTitle r={r} subtitle="심사위원별 채점 결과" />} r={r} showNames={share.show_judge_names} current={judgeNo} nav={i => href({ judge: i })}
                         comments={cm} commentsHref={href({ cm: !cm })} editRemarks={`/api/r/${share.token}/remark`} />}
-                  {tab === 'judges' && <p className="no-print mt-4 text-xs text-muted">인쇄하면 모든 심사위원 표가 한 쪽에 기업 2개씩, 쪽마다 서명란과 함께 출력됩니다. 종합 심사평은 펼쳐 두면 함께, 접어 두면 빼고 인쇄됩니다.</p>}
+                  {tab === 'judges' && <p className="no-print mt-4 text-xs text-muted">인쇄하면 심사위원 한 명당 한 쪽씩, 오른쪽 아래 서명란과 함께 출력됩니다. 종합 심사평은 펼쳐 두면 함께, 접어 두면 빼고 인쇄됩니다.</p>}
                 </div>
               </PrintFrame>
             )}
